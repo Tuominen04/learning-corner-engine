@@ -33,6 +33,9 @@ cargo fmt --all --check
 
 No system dependencies: SQLite is built from source by `rusqlite`'s bundled feature.
 
+CI configuration is parked at [`ci/github-workflow.yml`](ci/README.md) and needs moving into
+`.github/workflows/` — see that file for why.
+
 ## Status
 
 **M0 — foundations.** Libraries, topics, documents, the index, and the two properties the rest
