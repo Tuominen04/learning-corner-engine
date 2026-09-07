@@ -1,4 +1,4 @@
-# personal-learning-corner-engine
+# Personal Learning Corner Engine
 
 The engine behind [Personal Learning Corner](https://github.com/Tuominen04/personal-learning-corner).
 Everything that touches a person's library lives here: their files, the search index built from
