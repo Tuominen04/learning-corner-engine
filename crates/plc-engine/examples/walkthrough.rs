@@ -11,7 +11,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .unwrap_or_else(|| "/tmp/plc-walkthrough".into())
         .into();
-    let _ = std::fs::remove_dir_all(&root);
+
+    // Refuse to touch a directory that already holds something. An example that quietly
+    // deletes a path handed to it on the command line would contradict the third design
+    // principle in the first thirty seconds anyone spends with this project.
+    if root.exists() && root.read_dir()?.next().is_some() {
+        eprintln!(
+            "{} is not empty. Remove it, or pass a path that does not exist:\n\n    \
+             cargo run --example walkthrough -- /tmp/plc-walkthrough\n",
+            root.display()
+        );
+        std::process::exit(1);
+    }
 
     // 1. Create a library with two nested topics and two documents.
     let mut engine = Engine::create(&root, "Learning")?;
