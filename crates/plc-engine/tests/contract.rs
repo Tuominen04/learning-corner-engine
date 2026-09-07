@@ -342,3 +342,102 @@ fn a_revision_survives_being_carried_through_serialisation() {
         .document_write(ids.what_protein_is, "body", same)
         .unwrap();
 }
+
+// ---- the wire ------------------------------------------------------------------
+//
+// Every test above calls the engine directly in Rust. A real client does not: it reaches these
+// types across a JSON boundary where numbers are IEEE-754 doubles. Anything above 2^53 is
+// rounded in transit, so a value can leave correct and arrive wrong with nothing failing
+// anywhere in Rust.
+//
+// That is not hypothetical. It shipped: revisions carried nanoseconds since the epoch as a
+// number, came back rounded, and every single document write failed its conflict check. The
+// engine was right, the client was right, and nothing could be saved.
+
+/// JavaScript's largest exactly-representable integer.
+const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
+
+/// Necessary but **not** sufficient, and worth knowing which.
+///
+/// This test passes against the buggy version too: `serde_json` handles `u128` exactly, so a
+/// Rust-to-Rust round trip never loses anything. The corruption only happens in a *JavaScript*
+/// client, where the number becomes a double. The test below is the one that actually catches
+/// it — do not delete it thinking this one covers the same ground.
+#[test]
+fn a_revision_survives_a_json_round_trip() {
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+
+    let issued = fixture
+        .engine()
+        .document_read(ids.what_protein_is)
+        .unwrap()
+        .revision;
+
+    let json = serde_json::to_string(&issued).unwrap();
+    let returned: Revision = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(
+        issued, returned,
+        "a revision must survive the journey to a client and back"
+    );
+
+    // And it must still be accepted, which is the thing the user actually experiences.
+    fixture
+        .engine()
+        .document_write(
+            ids.what_protein_is,
+            "written with a round-tripped revision",
+            returned,
+        )
+        .expect("a round-tripped revision must still be accepted");
+}
+
+/// **This is the guard.** Verified to fail against the version that shipped the bug.
+#[test]
+fn nothing_crossing_the_wire_is_a_number_javascript_cannot_hold() {
+    // The general property, rather than one type's symptom. Any large integer sent as a JSON
+    // number is silently corrupted by a JavaScript client, so none may be sent that way.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+
+    let document = fixture.engine().document_read(ids.what_protein_is).unwrap();
+    let payload = serde_json::json!({
+        "revision": document.revision,
+        "status": {
+            "topics": fixture.engine().status().unwrap().topics,
+            "documents": fixture.engine().status().unwrap().documents,
+        },
+    });
+
+    let mut unsafe_numbers = Vec::new();
+    collect_unsafe_numbers(&payload, String::new(), &mut unsafe_numbers);
+    assert!(
+        unsafe_numbers.is_empty(),
+        "these would lose precision in a JavaScript client: {unsafe_numbers:?}"
+    );
+}
+
+fn collect_unsafe_numbers(value: &serde_json::Value, path: String, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::Number(n) => {
+            let too_big = n.as_u64().is_some_and(|v| v > MAX_SAFE_INTEGER)
+                || n.as_i64()
+                    .is_some_and(|v| v.unsigned_abs() > MAX_SAFE_INTEGER);
+            if too_big {
+                out.push(format!("{path} = {n}"));
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for (key, child) in map {
+                collect_unsafe_numbers(child, format!("{path}.{key}"), out);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for (i, child) in items.iter().enumerate() {
+                collect_unsafe_numbers(child, format!("{path}[{i}]"), out);
+            }
+        }
+        _ => {}
+    }
+}
