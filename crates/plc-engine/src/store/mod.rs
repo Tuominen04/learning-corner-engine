@@ -31,16 +31,55 @@ pub const TOPICS_DIR: &str = "topics";
 ///
 /// Derived from the filesystem rather than from the document's own `modified` field, because
 /// an external editor changes the body without touching the front matter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Revision {
     modified_nanos: u128,
     len: u64,
+}
+
+/// Serialised as the opaque string `"<nanos>:<len>"`, never as a pair of numbers.
+///
+/// This is not a style choice. A revision carries nanoseconds since the epoch — around
+/// 1.8e18 — and the interface reaches this type across a JSON boundary where numbers are
+/// IEEE-754 doubles. Anything above 2^53 (about 9.0e15) is rounded on the way through, so a
+/// revision serialised as a number comes back *different* from the one that was issued, every
+/// comparison fails, and no document can ever be saved.
+///
+/// A string crosses unchanged, and it matches what the contract already says a revision is: a
+/// token the caller stores and hands back, never one it inspects.
+impl serde::Serialize for Revision {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.token())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Revision {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        use serde::de::Error;
+        let raw = String::deserialize(deserializer)?;
+        Revision::from_token(&raw)
+            .ok_or_else(|| D::Error::custom(format!("{raw:?} is not a revision token")))
+    }
 }
 
 impl Revision {
     /// A compact form for recording in the index and comparing later.
     pub fn token(&self) -> String {
         format!("{}:{}", self.modified_nanos, self.len)
+    }
+
+    /// Recover a revision from the form [`Revision::token`] produces.
+    pub fn from_token(raw: &str) -> Option<Self> {
+        let (nanos, len) = raw.split_once(':')?;
+        Some(Revision {
+            modified_nanos: nanos.parse().ok()?,
+            len: len.parse().ok()?,
+        })
     }
 
     fn of(path: &Path) -> Result<Self> {

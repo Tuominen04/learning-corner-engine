@@ -22,6 +22,13 @@ The set is deliberately short so a client can handle each rather than showing a 
 
 ## The three worth understanding properly
 
+**A revision is a string, and must stay one on the wire.** It looks like a detail and is not.
+A revision carries nanoseconds since the epoch — around 1.8e18 — and any client reaching the
+engine across a JSON boundary parses numbers as IEEE-754 doubles, which cannot hold anything
+above 2^53. Serialised as a number, a revision arrives back *different* from the one issued,
+every conflict check fails, and no document can ever be saved. It is serialised as an opaque
+string for exactly this reason; treat it as one and never as something to parse.
+
 **`Conflict` is not a retry.** It means someone's work is on disk and yours is in memory, and the
 engine refused to choose between them. Re-reading and writing again silently discards theirs,
 which is exactly the outcome the check exists to prevent. Show both versions and let a person
