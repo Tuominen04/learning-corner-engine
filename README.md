@@ -25,16 +25,35 @@ bug.**
 
 ## Building
 
+Nothing to install beyond the Rust toolchain — SQLite is built from source by `rusqlite`'s
+bundled feature, so there are no system libraries to hunt down.
+
+`clippy` and `rustfmt` do ship separately from `cargo`, though, and CI runs both:
+
+```sh
+rustup component add clippy rustfmt   # or, on Fedora without rustup: sudo dnf install clippy rustfmt
+```
+
+Then:
+
 ```sh
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt --all --check
 ```
 
-No system dependencies: SQLite is built from source by `rusqlite`'s bundled feature.
+`cargo test` is the one that proves anything. The other two are style and lint gates that CI
+will catch anyway, so a missing component is an annoyance rather than a blocker.
 
-CI configuration is parked at [`ci/github-workflow.yml`](ci/README.md) and needs moving into
-`.github/workflows/` — see that file for why.
+To see a library rather than read about one:
+
+```sh
+cargo run --example walkthrough
+```
+
+It builds the roadmap's M0 walkthrough in `/tmp/plc-walkthrough` and then does the thing worth
+watching — deletes the index and rebuilds it, proving nothing observable changed. Afterwards,
+open the folder in a text editor: that is the whole point of the storage format.
 
 ## Status
 
