@@ -1,79 +1,61 @@
 # personal-learning-corner-engine
 
-The engine behind [Personal Learning Corner](https://github.com/Tuominen04/personal-learning-corner):
-everything that touches a user's library. Reading and writing files, the derived index,
-citation formatting, parallel-text alignment, and backup comparison.
+The engine behind [Personal Learning Corner](https://github.com/Tuominen04/personal-learning-corner).
+Everything that touches a person's library lives here: their files, the search index built from
+those files, citation formatting, parallel-text alignment, and backup comparison.
 
-It is usable with no interface at all. That is deliberate — it is what makes the rules about a
-user's data testable, and what keeps the boundary in the engine contract honest.
+## Why it exists separately
 
-## The specification lives in the other repository
+The application it serves is a desktop program, but the rules about someone's data are not a
+desktop concern. They are the product.
 
-This crate implements documents kept in `personal-learning-corner` under `docs/technical/`:
+Keeping them in their own crate means they can be tested with no window open, reasoned about
+without a user interface in the way, and reused by anything that comes later — a command-line
+tool, a second client, an importer. A rule that only runs inside a running application is a rule
+nobody can check.
 
-| Document | What it specifies |
-| -------- | ----------------- |
-| `backend-contract.md` | Every operation, its result, and its errors |
-| `storage-format.md` | The on-disk library — layout, file shapes, identifiers |
-| `search-index.md` | The derived index and why deleting it is safe |
-| `citation-model.md` | APA 7: source types, in-text forms, reference ordering |
-| `parallel-text-model.md` | Works, editions, segments, alignment |
-| `backup-and-sync.md` | Comparison, conflict rules, the never-lose-data promise |
+## What it guarantees
 
-**Where this code and those documents disagree, the documents are normative and this is a
-bug.**
+These are commitments, not implementation details. Everything in the crate is arranged to keep
+them true.
 
-## Building
+**Files are the truth.** Everything a person writes is a readable file in a folder they chose.
+The search index is a cache built from those files; delete it and nothing is lost. Anything the
+index knows that cannot be recovered from a full scan is a bug, and a test fails the moment one
+appears.
 
-Nothing to install beyond the Rust toolchain — SQLite is built from source by `rusqlite`'s
-bundled feature, so there are no system libraries to hunt down.
+**Nothing is destroyed without an explicit decision.** No operation overwrites or discards
+content on its own. Where intent cannot be determined the engine stops and asks, and the copy
+that lost is kept. This holds for a document edited in two places at once as much as for a
+backup restored over a library.
 
-`clippy` and `rustfmt` do ship separately from `cargo`, though, and CI runs both:
+**A write survives a power cut.** Files are replaced whole or not at all — never truncated,
+never half-written.
 
-```sh
-rustup component add clippy rustfmt   # or, on Fedora without rustup: sudo dnf install clippy rustfmt
-```
+**The library outlives the software.** Plain text, ordinary folders, no proprietary container.
+If this project stopped tomorrow, someone's notes would still open in any text editor.
 
-Then:
-
-```sh
-cargo test
-cargo clippy --all-targets -- -D warnings
-cargo fmt --all --check
-```
-
-`cargo test` is the one that proves anything. The other two are style and lint gates that CI
-will catch anyway, so a missing component is an annoyance rather than a blocker.
-
-To see a library rather than read about one:
-
-```sh
-cargo run --example walkthrough
-```
-
-It builds the roadmap's M0 walkthrough in `/tmp/plc-walkthrough` and then does the thing worth
-watching — deletes the index and rebuilds it, proving nothing observable changed. Afterwards,
-open the folder in a text editor: that is the whole point of the storage format.
+**Nothing leaves the machine.** No network calls, no telemetry, no account. The engine works on
+a computer that has never been online.
 
 ## Status
 
-**M0 — foundations.** Libraries, topics, documents, the index, and the two properties the rest
-of the design rests on:
+**M0 — foundations.** Libraries, topics, documents, and the index. Sources and APA 7 citations
+are M1, backup M2, parallel texts M3, mind maps M4.
 
-- **Rebuild equivalence.** Deleting the index and rebuilding it changes nothing observable.
-  Asserted in `tests/rebuild_equivalence.rs`.
-- **Atomic writes.** A crash leaves the previous whole file or the new whole file, never a
-  truncated one. Asserted in `src/atomic.rs`.
+Operations belonging to later milestones already exist and report themselves as unimplemented,
+so a client can be written against the whole surface now.
 
-Sources and citations are M1, backup is M2, parallel texts M3, maps M4. Those operations exist
-on the surface and return `Unimplemented`, so the interface can be written against the whole
-contract now.
+## Documentation
 
-## Versioning
+| Read this if you want to… | Go to |
+| --- | --- |
+| **use** the engine in a client | [`docs/user/`](docs/user/) |
+| **change** the engine | [`docs/technical/`](docs/technical/) |
+| know what the engine is *required* to do | [the specification](https://github.com/Tuominen04/personal-learning-corner/tree/main/docs/technical) in the main repository |
 
-Released as immutable git tags, consumed by the interface as
-`plc-engine = { git = "…", tag = "v0.1.0" }`. Both repositories are private, so no registry is
-involved. See ADR 0006 in the other repository.
+That last row matters. The specification is normative and lives with the product it describes;
+where this crate and those documents disagree, the documents are right and this is a bug.
 
 ## Licence
 
