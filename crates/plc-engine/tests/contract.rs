@@ -304,14 +304,8 @@ fn operations_from_later_milestones_are_named_and_unimplemented() {
     let mut fixture = Fixture::populated();
     let root = fixture.engine().root().to_path_buf();
 
-    assert!(matches!(
-        fixture.engine().source_create(),
-        Err(Error::Unimplemented(_))
-    ));
-    assert!(matches!(
-        fixture.engine().citation_format(),
-        Err(Error::Unimplemented(_))
-    ));
+    // source_create and citation_format stood here until M1 filled them in, which is the
+    // point of the pattern: a body changed, no signature moved, and no client broke.
     assert!(matches!(
         fixture.engine().work_create(),
         Err(Error::Unimplemented(_))

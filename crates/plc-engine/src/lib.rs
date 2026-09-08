@@ -11,6 +11,7 @@
 
 pub mod api;
 pub mod atomic;
+pub mod citation;
 pub mod error;
 pub mod id;
 pub mod index;

@@ -23,6 +23,12 @@ use crate::timestamp::Timestamp;
 /// The directory holding all root topics.
 pub const TOPICS_DIR: &str = "topics";
 
+/// The directory holding every source in the library.
+///
+/// Flat rather than nested: a source belongs to the library, not to a topic, which is what
+/// lets one book be cited from fifty documents across it.
+pub const SOURCES_DIR: &str = "sources";
+
 /// An opaque token identifying the on-disk state of a file.
 ///
 /// Returned by every read and required by every write: if the file changed underneath —
@@ -120,6 +126,7 @@ pub struct Problem {
 pub struct Scan {
     pub topics: Vec<Found<Topic>>,
     pub documents: Vec<Found<Document>>,
+    pub sources: Vec<Found<crate::citation::Source>>,
     pub problems: Vec<Problem>,
 }
 
@@ -198,6 +205,32 @@ impl Store {
         }
     }
 
+    // ---- sources ---------------------------------------------------------------
+
+    pub fn read_source(&self, path: &Path) -> Result<Found<crate::citation::Source>> {
+        let absolute = self.absolute(path);
+        let text = fs::read_to_string(&absolute).ctx(format!("reading {}", absolute.display()))?;
+        let entity = toml::from_str(&text)
+            .map_err(|e| Error::library(format!("{}: {e}", path.display())))?;
+        Ok(Found {
+            entity,
+            path: path.to_path_buf(),
+            revision: Revision::of(&absolute)?,
+        })
+    }
+
+    pub fn write_source(&self, path: &Path, entity: &crate::citation::Source) -> Result<Revision> {
+        let text = toml::to_string_pretty(entity)
+            .map_err(|e| Error::library(format!("cannot serialise source: {e}")))?;
+        let absolute = self.absolute(path);
+        atomic::write(&absolute, &text)?;
+        Revision::of(&absolute)
+    }
+
+    pub fn remove_source(&self, path: &Path) -> Result<()> {
+        atomic::remove(&self.absolute(path))
+    }
+
     // ---- moving and removing ---------------------------------------------------
 
     pub fn move_path(&self, from: &Path, to: &Path) -> Result<()> {
@@ -217,8 +250,16 @@ impl Store {
         let mut taken = HashSet::new();
         for entry in fs::read_dir(&absolute).ctx(format!("listing {}", absolute.display()))? {
             let entry = entry.ctx(format!("listing {}", absolute.display()))?;
-            let name = entry.file_name().to_string_lossy().to_string();
-            taken.insert(name.trim_end_matches(".md").to_string());
+            // Compare stems, not filenames. Trimming one known extension meant a `.toml`
+            // source was recorded as "nieminen-2021.toml" while a new one asked about
+            // "nieminen-2021" — so the collision went unseen and the second source
+            // overwrote the first.
+            let name = entry.file_name();
+            let stem = Path::new(&name)
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| name.to_string_lossy().to_string());
+            taken.insert(stem);
         }
         Ok(taken)
     }
@@ -231,9 +272,11 @@ impl Store {
     /// authoritative: everything the index knows can be recovered from here.
     pub fn scan(&self) -> Result<Scan> {
         let mut scan = Scan::default();
-        let topics_root = self.root.join(TOPICS_DIR);
-        if topics_root.exists() {
+        if self.root.join(TOPICS_DIR).exists() {
             self.walk(&PathBuf::from(TOPICS_DIR), &mut scan)?;
+        }
+        if self.root.join(SOURCES_DIR).exists() {
+            self.walk_sources(&mut scan)?;
         }
         detect_duplicate_ids(&mut scan);
         Ok(scan)
@@ -246,9 +289,11 @@ impl Store {
     /// application was closed.
     pub fn signature(&self) -> Result<BTreeMap<PathBuf, String>> {
         let mut out = BTreeMap::new();
-        let topics_root = self.root.join(TOPICS_DIR);
-        if topics_root.exists() {
+        if self.root.join(TOPICS_DIR).exists() {
             self.walk_signature(&PathBuf::from(TOPICS_DIR), &mut out)?;
+        }
+        if self.root.join(SOURCES_DIR).exists() {
+            self.walk_signature(&PathBuf::from(SOURCES_DIR), &mut out)?;
         }
         Ok(out)
     }
@@ -276,6 +321,32 @@ impl Store {
                     relative.clone(),
                     Revision::of(&self.absolute(&relative))?.token(),
                 );
+            }
+        }
+        Ok(())
+    }
+
+    fn walk_sources(&self, scan: &mut Scan) -> Result<()> {
+        let dir = PathBuf::from(SOURCES_DIR);
+        let absolute = self.absolute(&dir);
+        let mut entries: Vec<_> = fs::read_dir(&absolute)
+            .ctx(format!("listing {}", absolute.display()))?
+            .collect::<std::io::Result<Vec<_>>>()
+            .ctx(format!("listing {}", absolute.display()))?;
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in entries {
+            let relative = dir.join(entry.file_name());
+            if relative.extension().and_then(|e| e.to_str()) != Some("toml") {
+                continue;
+            }
+            match self.read_source(&relative) {
+                Ok(found) => scan.sources.push(found),
+                Err(e) => scan.problems.push(Problem {
+                    path: relative.clone(),
+                    message: e.to_string(),
+                    revision: revision_token(&self.absolute(&relative)),
+                }),
             }
         }
         Ok(())
@@ -368,4 +439,38 @@ fn revision_token(path: &Path) -> Option<String> {
 /// The timestamp to record as a document's `modified` field.
 pub fn now() -> Timestamp {
     Timestamp::now()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Two entities whose names collide must get distinct files, whatever their extension.
+    ///
+    /// This failed for sources: the taken-name check trimmed only `.md`, so a second source
+    /// by the same author in the same year was handed the filename of the first and wrote
+    /// straight over it. Silent, and a lost source is a lost source.
+    #[test]
+    fn taken_names_compares_stems_across_extensions() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("sources")).unwrap();
+        fs::write(dir.path().join("sources/nieminen-2021.toml"), "").unwrap();
+        fs::write(dir.path().join("topics/note.md"), "").unwrap_or_else(|_| {
+            fs::create_dir_all(dir.path().join("topics")).unwrap();
+            fs::write(dir.path().join("topics/note.md"), "").unwrap()
+        });
+
+        let library = Library::create(dir.path().join("lib"), "L").unwrap();
+        let store = Store {
+            root: dir.path().to_path_buf(),
+        };
+        let _ = library;
+
+        let taken = store.taken_names(Path::new("sources")).unwrap();
+        assert!(taken.contains("nieminen-2021"), "got {taken:?}");
+        assert_eq!(slug::unique("Nieminen 2021", &taken), "nieminen-2021-2");
+
+        let taken = store.taken_names(Path::new("topics")).unwrap();
+        assert!(taken.contains("note"), "got {taken:?}");
+    }
 }

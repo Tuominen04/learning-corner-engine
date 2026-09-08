@@ -10,12 +10,15 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::citation::disambiguate::Disambiguation;
+use crate::citation::format::{self, Form, Locator};
+use crate::citation::{Field, Source};
 use crate::error::{Error, Result};
 use crate::id::Id;
 use crate::index::{Entry, Hit, Index, Kind, RebuildSummary};
 use crate::library::{Library, Manifest};
 use crate::model::{topic, Document, Topic};
-use crate::store::{slug, Problem, Revision, Store, TOPICS_DIR};
+use crate::store::{slug, Problem, Revision, Store, SOURCES_DIR, TOPICS_DIR};
 use crate::timestamp::Timestamp;
 
 /// An open library, with its store and index.
@@ -319,18 +322,140 @@ impl Engine {
         self.index.search(query)
     }
 
+    // ---- sources ---------------------------------------------------------------
+
+    /// Store a source.
+    ///
+    /// A source missing a required field is **saved anyway** and reported as incomplete.
+    /// Somebody who cannot find a publisher should end up with an incomplete source, never
+    /// with no source at all, so nothing here rejects and nothing is defaulted or invented.
+    pub fn source_create(&mut self, source: Source) -> Result<(Id, Vec<Field>)> {
+        self.library.ensure_writable()?;
+        if source.title.trim().is_empty() {
+            return Err(Error::invalid("title", "a source needs a title"));
+        }
+
+        let dir = PathBuf::from(SOURCES_DIR);
+        let taken = self.store.taken_names(&dir)?;
+        let stem = format!("{} {}", source.sort_key(), source.date.year_text());
+        let path = dir.join(format!("{}.toml", slug::unique(&stem, &taken)));
+
+        let id = source.id;
+        let missing = source.missing_fields();
+        self.store.write_source(&path, &source)?;
+        self.index.rebuild(&self.store)?;
+        Ok((id, missing))
+    }
+
+    pub fn source_read(&self, id: Id) -> Result<Source> {
+        let entry = self.expect(id, Kind::Source)?;
+        Ok(self.store.read_source(&entry.path)?.entity)
+    }
+
+    pub fn source_update(&mut self, source: Source) -> Result<Vec<Field>> {
+        self.library.ensure_writable()?;
+        let entry = self.expect(source.id, Kind::Source)?;
+        let missing = source.missing_fields();
+        self.store.write_source(&entry.path, &source)?;
+        self.index.rebuild(&self.store)?;
+        Ok(missing)
+    }
+
+    /// Every source in the library, in reference-list order.
+    pub fn source_list(&self) -> Result<Vec<Source>> {
+        let mut sources = Vec::new();
+        for entry in self.index.entries(Kind::Source)? {
+            sources.push(self.store.read_source(&entry.path)?.entity);
+        }
+        sources.sort_by(format::reference_order);
+        Ok(sources)
+    }
+
+    /// What would break if this source were deleted.
+    ///
+    /// Deleting a source orphans every citation of it, so this is two-phase without
+    /// exception: the plan names the documents, and only then may `source_delete` run.
+    pub fn source_delete_plan(&self, id: Id) -> Result<Vec<DocumentSummary>> {
+        self.expect(id, Kind::Source)?;
+        self.source_citing_documents(id)
+    }
+
+    pub fn source_delete(&mut self, id: Id) -> Result<()> {
+        self.library.ensure_writable()?;
+        let entry = self.expect(id, Kind::Source)?;
+        self.store.remove_source(&entry.path)?;
+        self.index.rebuild(&self.store)?;
+        Ok(())
+    }
+
+    /// Documents citing this source.
+    ///
+    /// The feature you are glad of on a bad day: a study is retracted, and this is how you
+    /// find the eleven places you leaned on it.
+    pub fn source_citing_documents(&self, id: Id) -> Result<Vec<DocumentSummary>> {
+        self.index
+            .citing_documents(id)?
+            .into_iter()
+            .map(|doc| {
+                self.index.resolve(doc).map(|e| DocumentSummary {
+                    id: e.id,
+                    title: e.title,
+                })
+            })
+            .collect()
+    }
+
+    pub fn source_required_fields(&self, source_type: crate::citation::SourceType) -> Vec<Field> {
+        source_type.required_fields().to_vec()
+    }
+
+    // ---- citations ---------------------------------------------------------------
+
+    /// The in-text citation for one source, disambiguated against the whole library.
+    pub fn citation_format(
+        &self,
+        source: Id,
+        form: Form,
+        locator: Option<Locator>,
+    ) -> Result<String> {
+        let sources = self.source_list()?;
+        let target = sources
+            .iter()
+            .find(|s| s.id == source)
+            .ok_or_else(|| Error::NotFound(source.to_string()))?;
+        let disambiguation = Disambiguation::compute(&sources);
+        Ok(format::in_text(
+            target,
+            &disambiguation,
+            form,
+            locator.as_ref(),
+        ))
+    }
+
+    /// The reference list for one document, built from the sources it actually cites.
+    ///
+    /// Disambiguation is computed over the **whole library**, not over this document's
+    /// sources, so the same source cites identically in every document that uses it.
+    pub fn citation_reference_list(&self, document: Id) -> Result<Vec<String>> {
+        let view = self.document_read(document)?;
+        let cited: Vec<Id> = crate::model::Document {
+            meta: crate::model::document::Meta {
+                id: view.id,
+                title: view.title.clone(),
+                created: view.created,
+                modified: view.modified,
+            },
+            body: view.body.clone(),
+        }
+        .citations();
+
+        let all = self.source_list()?;
+        let disambiguation = Disambiguation::compute(&all);
+        let used: Vec<Source> = all.into_iter().filter(|s| cited.contains(&s.id)).collect();
+        Ok(format::reference_list(&used, &disambiguation))
+    }
+
     // ---- later milestones ------------------------------------------------------
-    //
-    // Named in the contract so the interface can be written against the whole surface, and
-    // so adding them later is filling in a body rather than changing a shape.
-
-    pub fn source_create(&mut self) -> Result<()> {
-        Err(Error::Unimplemented("source.create"))
-    }
-
-    pub fn citation_format(&self) -> Result<String> {
-        Err(Error::Unimplemented("citation.format"))
-    }
 
     pub fn work_create(&mut self) -> Result<()> {
         Err(Error::Unimplemented("work.create"))
