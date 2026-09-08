@@ -1,0 +1,39 @@
+# Weekly dependency updates.
+#
+# Monday morning, so a week's worth of updates is waiting at the start of the week rather
+# than trickling in and interrupting.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Helsinki
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    groups:
+      # One pull request for the routine bumps. Separate ones only where the version number
+      # says a human should look.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Helsinki
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        update-types:
+          - minor
+          - patch
