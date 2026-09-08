@@ -19,7 +19,7 @@ pub struct Id(ulid::Ulid);
 impl Id {
     /// A new identifier, timestamped now.
     pub fn new() -> Self {
-        Id(ulid::Ulid::new())
+        Id(ulid::Ulid::generate())
     }
 }
 
