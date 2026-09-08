@@ -32,8 +32,11 @@ impl Timestamp {
             time: Some(toml::value::Time {
                 hour: t.hour(),
                 minute: t.minute(),
-                second: t.second(),
-                nanosecond: 0,
+                second: Some(t.second()),
+                // Explicitly none rather than zero: toml 1 distinguishes "no sub-second part
+                // was given" from "exactly zero nanoseconds", and these timestamps are
+                // second-resolution by design.
+                nanosecond: None,
             }),
             offset: Some(toml::value::Offset::Z),
         })
