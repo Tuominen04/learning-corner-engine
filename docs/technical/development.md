@@ -22,21 +22,20 @@ sudo dnf install clippy rustfmt
 Nothing else. SQLite is compiled from source by `rusqlite`'s bundled feature, so there are no
 system libraries to hunt down and no version skew between machines.
 
-### Match the version CI runs
+### The compiler is pinned
 
-CI installs the current **stable** toolchain, and clippy gains lints with each release. A lint
-that does not exist in your local version cannot warn you, so a clean local run is not evidence
-of a clean pipeline — which is how `unnecessary_sort_by` reached CI from a machine on an older
-compiler.
+`rust-toolchain.toml` fixes the version, and rustup installs it — with clippy and rustfmt — on
+your first `cargo` command. Nothing to do, and no `+1.98.0` on every invocation.
 
-Check what CI is on (the lint URLs in a failure name the version), and run the same one:
+It exists because clippy gains lints with every release, and a lint that does not exist in your
+local version cannot warn you. Before the pin, CI ran whatever stable was that week while a
+contributor might be several releases behind, and a change passed every check on one machine
+and failed on the other over a lint nobody could see locally.
 
-```sh
-rustup toolchain install 1.98.0 --component clippy,rustfmt --profile minimal
-cargo +1.98.0 clippy --all-targets --all-features -- -D warnings
-```
-
-Or keep yours current with `rustup update stable`.
+**Bumping it is its own change**, never a line inside somebody else's: edit the channel, run
+the checks, fix whatever the newer clippy has learned to notice, push that alone. Dependabot
+does not track this file — no ecosystem covers a Rust toolchain — so the bump is deliberate by
+construction, which is the right shape for something that can turn every check red at once.
 
 ## The loop
 

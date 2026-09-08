@@ -1,0 +1,17 @@
+# Pin the compiler, so "clean here" and "clean in CI" mean the same thing.
+#
+# clippy gains lints with every Rust release, and a lint that does not exist in your local
+# version cannot warn you. Before this file, CI installed whatever stable was that week while
+# a contributor might be several releases behind — and a pull request passed every check on
+# one machine and failed on the other, over a lint nobody could see locally.
+#
+# rustup reads this file and installs the toolchain, with the components listed below, on the
+# first cargo command. No workflow change is needed for CI to honour it.
+#
+# Bumping it is a deliberate act: change the channel, run the checks, fix whatever the newer
+# clippy has learned to notice, and push it as its own change rather than as a surprise inside
+# somebody else's.
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"
