@@ -22,6 +22,22 @@ sudo dnf install clippy rustfmt
 Nothing else. SQLite is compiled from source by `rusqlite`'s bundled feature, so there are no
 system libraries to hunt down and no version skew between machines.
 
+### Match the version CI runs
+
+CI installs the current **stable** toolchain, and clippy gains lints with each release. A lint
+that does not exist in your local version cannot warn you, so a clean local run is not evidence
+of a clean pipeline — which is how `unnecessary_sort_by` reached CI from a machine on an older
+compiler.
+
+Check what CI is on (the lint URLs in a failure name the version), and run the same one:
+
+```sh
+rustup toolchain install 1.98.0 --component clippy,rustfmt --profile minimal
+cargo +1.98.0 clippy --all-targets --all-features -- -D warnings
+```
+
+Or keep yours current with `rustup update stable`.
+
 ## The loop
 
 ```sh

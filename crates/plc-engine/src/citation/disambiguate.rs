@@ -142,7 +142,7 @@ fn assign_year_suffixes(sources: &[Source], entries: &mut HashMap<Id, Entry>) {
         if group.len() < 2 {
             continue;
         }
-        group.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+        group.sort_by_key(|source| source.title.to_lowercase());
         for (position, source) in group.iter().enumerate() {
             if let Some(entry) = entries.get_mut(&source.id) {
                 // 26 works by the same authors in one year is beyond what a letter can carry;
