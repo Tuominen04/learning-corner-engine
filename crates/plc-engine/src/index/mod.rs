@@ -82,6 +82,7 @@ pub struct Entry {
 pub enum Kind {
     Topic,
     Document,
+    Source,
 }
 
 impl Kind {
@@ -89,6 +90,7 @@ impl Kind {
         match self {
             Kind::Topic => "topic",
             Kind::Document => "document",
+            Kind::Source => "source",
         }
     }
 
@@ -96,6 +98,7 @@ impl Kind {
         match s {
             "topic" => Ok(Kind::Topic),
             "document" => Ok(Kind::Document),
+            "source" => Ok(Kind::Source),
             other => Err(Error::library(format!("unknown entity kind {other:?}"))),
         }
     }
@@ -266,6 +269,33 @@ impl Index {
                 )
                 .map_err(sql)?;
             }
+        }
+
+        for found in &scan.sources {
+            let source = &found.entity;
+            if !inserted.insert(source.id) {
+                continue;
+            }
+            // Searchable by title and by the people who made it, which is how someone
+            // actually looks for a source they saved months ago.
+            let people: String = source
+                .contributors
+                .iter()
+                .map(|c| c.sort_key())
+                .collect::<Vec<_>>()
+                .join(" ");
+            insert_entity(
+                &tx,
+                source.id,
+                Kind::Source,
+                &found.path,
+                &source.title,
+                &source.date.year_text(),
+                &digest(source.title.as_bytes()),
+                &people,
+                &found.path,
+                &found.revision.token(),
+            )?;
         }
 
         for problem in &scan.problems {
@@ -468,6 +498,19 @@ impl Index {
             .map_err(sql)?;
         let rows = stmt
             .query_map(params![id.to_string()], |row| row.get::<_, String>(0))
+            .map_err(sql)?;
+        rows.map(|r| r.map_err(sql).and_then(|s| s.parse()))
+            .collect()
+    }
+
+    /// Documents citing a given source, derived from `[^cite:…]` and never stored.
+    pub fn citing_documents(&self, source: Id) -> Result<Vec<Id>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT document_id FROM citation WHERE source_id = ?1 ORDER BY document_id")
+            .map_err(sql)?;
+        let rows = stmt
+            .query_map(params![source.to_string()], |row| row.get::<_, String>(0))
             .map_err(sql)?;
         rows.map(|r| r.map_err(sql).and_then(|s| s.parse()))
             .collect()

@@ -1,0 +1,632 @@
+//! APA 7, rule by rule.
+//!
+//! The product's whole claim is that it gets this right, so being approximately correct here
+//! is the same as being wrong. Every rule in `citation-model.md` gets at least one case, and
+//! every disambiguation rule gets a case with more than one source — because those rules
+//! cannot be observed from a single citation at all.
+
+use plc_engine::citation::disambiguate::Disambiguation;
+use plc_engine::citation::format::{in_text, reference_entry, reference_list, Form, Locator};
+use plc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
+
+fn author(family: &str, given: &str) -> Contributor {
+    Contributor::person(Role::Author, family, given)
+}
+
+fn article(title: &str, year: i32, authors: Vec<Contributor>) -> Source {
+    let mut source = Source::new(SourceType::JournalArticle, title, Date::Year(year));
+    source.contributors = authors;
+    source.container = Some("Journal of Nutrition".into());
+    source.volume = Some("151".into());
+    source
+}
+
+/// In-text form for a source considered on its own.
+fn alone(source: &Source, form: Form) -> String {
+    let sources = vec![source.clone()];
+    in_text(source, &Disambiguation::compute(&sources), form, None)
+}
+
+// ---- author counts -------------------------------------------------------------
+
+#[test]
+fn one_author() {
+    let s = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    assert_eq!(alone(&s, Form::Parenthetical), "(Nieminen, 2021)");
+    assert_eq!(alone(&s, Form::Narrative), "Nieminen (2021)");
+}
+
+#[test]
+fn two_authors_use_an_ampersand_only_inside_parentheses() {
+    let s = article(
+        "Protein",
+        2021,
+        vec![author("Nieminen", "Anna"), author("Kallio", "Kai")],
+    );
+    assert_eq!(alone(&s, Form::Parenthetical), "(Nieminen & Kallio, 2021)");
+    assert_eq!(alone(&s, Form::Narrative), "Nieminen and Kallio (2021)");
+}
+
+#[test]
+fn three_or_more_shorten_from_the_very_first_citation() {
+    // This changed in APA 7. Anyone checking against memory of APA 6 will expect the full
+    // list on first use and a shortened one afterwards.
+    let s = article(
+        "Protein",
+        2021,
+        vec![
+            author("Nieminen", "Anna"),
+            author("Kallio", "Kai"),
+            author("Virtanen", "Vi"),
+        ],
+    );
+    assert_eq!(alone(&s, Form::Parenthetical), "(Nieminen et al., 2021)");
+    assert_eq!(alone(&s, Form::Narrative), "Nieminen et al. (2021)");
+}
+
+#[test]
+fn a_group_author_introduces_its_abbreviation_then_uses_it() {
+    let mut s = article("Protein intake", 2019, vec![]);
+    s.contributors = vec![
+        Contributor::group(Role::Author, "World Health Organization").with_abbreviation("WHO"),
+    ];
+    assert_eq!(
+        alone(&s, Form::Parenthetical),
+        "(World Health Organization [WHO], 2019)"
+    );
+
+    let mut later = s.clone();
+    later.contributors = vec![Contributor::group(Role::Author, "WHO")];
+    assert_eq!(alone(&later, Form::Parenthetical), "(WHO, 2019)");
+}
+
+#[test]
+fn no_author_puts_the_title_in_the_author_position() {
+    let s = article("Protein requirements", 2021, vec![]);
+    assert_eq!(
+        alone(&s, Form::Parenthetical),
+        "(\u{201c}Protein requirements,\u{201d} 2021)"
+    );
+}
+
+#[test]
+fn no_date_is_n_d_rather_than_an_empty_space() {
+    let mut s = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    s.date = Date::NoDate;
+    assert_eq!(alone(&s, Form::Parenthetical), "(Nieminen, n.d.)");
+    assert_eq!(alone(&s, Form::Narrative), "Nieminen (n.d.)");
+}
+
+// ---- locators ------------------------------------------------------------------
+
+#[test]
+fn locators_are_labelled_by_kind_and_ranges_take_an_en_dash() {
+    let s = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    let sources = vec![s.clone()];
+    let d = Disambiguation::compute(&sources);
+
+    let with = |l: Locator| in_text(&s, &d, Form::Parenthetical, Some(&l));
+
+    assert_eq!(with(Locator::Page("44".into())), "(Nieminen, 2021, p. 44)");
+    assert_eq!(
+        with(Locator::Page("44-46".into())),
+        "(Nieminen, 2021, pp. 44\u{2013}46)"
+    );
+    assert_eq!(
+        with(Locator::Paragraph("3".into())),
+        "(Nieminen, 2021, para. 3)"
+    );
+    assert_eq!(
+        with(Locator::Chapter("2".into())),
+        "(Nieminen, 2021, Chapter 2)"
+    );
+    assert_eq!(
+        with(Locator::Timestamp("1:14:22".into())),
+        "(Nieminen, 2021, 1:14:22)"
+    );
+}
+
+// ---- disambiguation: none of this is visible from one citation -----------------
+
+#[test]
+fn same_authors_same_year_get_letters_ordered_by_title() {
+    let first = article("Amino acids", 2021, vec![author("Nieminen", "Anna")]);
+    let second = article("Zinc and protein", 2021, vec![author("Nieminen", "Anna")]);
+    let sources = vec![second.clone(), first.clone()]; // deliberately out of order
+    let d = Disambiguation::compute(&sources);
+
+    // Letters follow the reference-list title order, not insertion order.
+    assert_eq!(
+        in_text(&first, &d, Form::Parenthetical, None),
+        "(Nieminen, 2021a)"
+    );
+    assert_eq!(
+        in_text(&second, &d, Form::Parenthetical, None),
+        "(Nieminen, 2021b)"
+    );
+}
+
+#[test]
+fn two_authors_sharing_a_surname_are_told_apart_by_initials() {
+    let anna = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    let jussi = article("Iron", 2019, vec![author("Nieminen", "Jussi")]);
+    let sources = vec![anna.clone(), jussi.clone()];
+    let d = Disambiguation::compute(&sources);
+
+    assert_eq!(
+        in_text(&anna, &d, Form::Parenthetical, None),
+        "(A. Nieminen, 2021)"
+    );
+    assert_eq!(
+        in_text(&jussi, &d, Form::Parenthetical, None),
+        "(J. Nieminen, 2019)"
+    );
+}
+
+#[test]
+fn one_author_alone_keeps_their_surname_unadorned() {
+    let anna = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    let other = article("Iron", 2019, vec![author("Kallio", "Kai")]);
+    let sources = vec![anna.clone(), other];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        in_text(&anna, &d, Form::Parenthetical, None),
+        "(Nieminen, 2021)"
+    );
+}
+
+#[test]
+fn works_that_would_shorten_alike_expand_until_they_differ() {
+    // The trap in the spec: both shorten to "(Chen et al., 2020)" and a reader cannot tell
+    // them apart. Neither can be fixed by looking at either one alone.
+    let wang = article(
+        "Protein A",
+        2020,
+        vec![
+            author("Chen", "Li"),
+            author("Wang", "Wei"),
+            author("Zhao", "Zi"),
+        ],
+    );
+    let liu = article(
+        "Protein B",
+        2020,
+        vec![
+            author("Chen", "Li"),
+            author("Liu", "Lan"),
+            author("Zhao", "Zi"),
+        ],
+    );
+    let sources = vec![wang.clone(), liu.clone()];
+    let d = Disambiguation::compute(&sources);
+
+    assert_eq!(
+        in_text(&wang, &d, Form::Parenthetical, None),
+        "(Chen, Wang, et al., 2020)"
+    );
+    assert_eq!(
+        in_text(&liu, &d, Form::Parenthetical, None),
+        "(Chen, Liu, et al., 2020)"
+    );
+}
+
+#[test]
+fn works_that_already_differ_are_left_short() {
+    let a = article(
+        "Protein A",
+        2020,
+        vec![
+            author("Chen", "Li"),
+            author("Wang", "Wei"),
+            author("Zhao", "Zi"),
+        ],
+    );
+    let b = article(
+        "Iron",
+        2020,
+        vec![
+            author("Kallio", "Kai"),
+            author("Virtanen", "Vi"),
+            author("Aho", "Ari"),
+        ],
+    );
+    let sources = vec![a.clone(), b];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        in_text(&a, &d, Form::Parenthetical, None),
+        "(Chen et al., 2020)"
+    );
+}
+
+// ---- reference entries, per type -----------------------------------------------
+
+fn entry(source: &Source) -> String {
+    let sources = vec![source.clone()];
+    reference_entry(source, &Disambiguation::compute(&sources))
+}
+
+#[test]
+fn a_journal_article_entry() {
+    let mut s = article(
+        "Protein requirements in adults",
+        2021,
+        vec![author("Nieminen", "Anna")],
+    );
+    s.issue = Some("4".into());
+    s.pages = Some("612-620".into());
+    s.doi = Some("10.1000/example".into());
+
+    assert_eq!(
+        entry(&s),
+        "Nieminen, A. (2021). Protein requirements in adults. *Journal of Nutrition*, *151*(4), \
+         612\u{2013}620. https://doi.org/10.1000/example"
+    );
+}
+
+#[test]
+fn a_book_entry() {
+    let mut s = Source::new(SourceType::Book, "Protein and the body", Date::Year(2021));
+    s.contributors = vec![author("Nieminen", "Anna"), author("Kallio", "Kai")];
+    s.publisher = Some("Kustannus".into());
+    s.edition = Some("2nd ed.".into());
+
+    assert_eq!(
+        entry(&s),
+        "Nieminen, A., & Kallio, K. (2021). *Protein and the body* (2nd ed.). Kustannus."
+    );
+}
+
+#[test]
+fn a_book_chapter_entry_names_its_editors() {
+    let mut s = Source::new(SourceType::BookChapter, "Amino acids", Date::Year(2021));
+    s.contributors = vec![
+        author("Nieminen", "Anna"),
+        Contributor::person(Role::Editor, "Kallio", "Kai"),
+    ];
+    s.container = Some("Nutrition handbook".into());
+    s.pages = Some("44-46".into());
+    s.publisher = Some("Kustannus".into());
+
+    assert_eq!(
+        entry(&s),
+        "Nieminen, A. (2021). Amino acids. In K. Kallio (Ed.), *Nutrition handbook* \
+         (pp. 44\u{2013}46). Kustannus."
+    );
+}
+
+#[test]
+fn a_web_page_entry_carries_a_full_date() {
+    let mut s = Source::new(
+        SourceType::WebPage,
+        "Protein basics",
+        Date::Full(2021, 9, 6),
+    );
+    s.contributors = vec![author("Nieminen", "Anna")];
+    s.site = Some("Terveyskirjasto".into());
+    s.url = Some("https://example.org/protein".into());
+
+    assert_eq!(
+        entry(&s),
+        "Nieminen, A. (2021, September 6). Protein basics. Terveyskirjasto. \
+         https://example.org/protein"
+    );
+}
+
+#[test]
+fn a_retrieval_date_appears_only_when_the_source_carries_one() {
+    let mut s = Source::new(SourceType::WebPage, "Live figures", Date::Full(2021, 9, 6));
+    s.contributors = vec![author("Nieminen", "Anna")];
+    s.site = Some("Statistics".into());
+    s.url = Some("https://example.org/live".into());
+
+    assert!(
+        !entry(&s).contains("Retrieved"),
+        "most pages must not carry one"
+    );
+
+    s.retrieved = Some(Date::Full(2026, 9, 7));
+    assert!(
+        entry(&s).contains("Retrieved September 7, 2026, from"),
+        "{}",
+        entry(&s)
+    );
+}
+
+#[test]
+fn twenty_one_authors_are_elided_rather_than_shortened_to_et_al() {
+    let mut s = article("Many hands", 2021, vec![]);
+    s.contributors = (0..21)
+        .map(|i| author(&format!("Author{i:02}"), &format!("Given{i}")))
+        .collect();
+
+    let text = entry(&s);
+    assert!(
+        text.contains(". . . Author20, G."),
+        "the final author must survive: {text}"
+    );
+    assert!(
+        !text.contains("et al."),
+        "et al. belongs in text, never in the reference list"
+    );
+    assert!(
+        text.contains("Author18, G."),
+        "nineteen must be listed: {text}"
+    );
+    assert!(
+        !text.contains("Author19, G."),
+        "the twentieth must be elided: {text}"
+    );
+}
+
+// ---- reference list ------------------------------------------------------------
+
+#[test]
+fn the_list_is_alphabetical_then_by_year_then_by_title() {
+    let sources = vec![
+        article("Zinc", 2019, vec![author("Virtanen", "Vi")]),
+        article("Beta", 2021, vec![author("Nieminen", "Anna")]),
+        article("Alpha", 2021, vec![author("Nieminen", "Anna")]),
+        article("Iron", 2005, vec![author("Aho", "Ari")]),
+    ];
+    let d = Disambiguation::compute(&sources);
+    let list = reference_list(&sources, &d);
+
+    let starts: Vec<&str> = list.iter().map(|e| e.split(',').next().unwrap()).collect();
+    assert_eq!(starts, vec!["Aho", "Nieminen", "Nieminen", "Virtanen"]);
+
+    // And the two by the same author in one year carry their letters here too.
+    assert!(list[1].contains("(2021a)"), "{}", list[1]);
+    assert!(list[2].contains("(2021b)"), "{}", list[2]);
+}
+
+#[test]
+fn finnish_and_cyrillic_names_sort_without_falling_back_to_byte_order() {
+    let sources = vec![
+        article("Zinc", 2021, vec![author("Öhman", "Olli")]),
+        article("Iron", 2021, vec![author("Aho", "Ari")]),
+        article("Protein", 2021, vec![author("Никитин", "Иван")]),
+    ];
+    let list = reference_list(&sources, &Disambiguation::compute(&sources));
+    let starts: Vec<&str> = list.iter().map(|e| e.split(',').next().unwrap()).collect();
+    assert_eq!(starts, vec!["Aho", "Öhman", "Никитин"]);
+}
+
+// ---- through a real library ----------------------------------------------------
+//
+// Everything above is pure logic over values. These go through files on disk, the index, and
+// the API a client actually calls — because M0 taught that a layer nothing exercises is a
+// layer where both sides can be correct and the product still not work.
+
+use plc_engine::api::Engine;
+use plc_engine::citation::Field;
+
+fn library() -> (tempfile::TempDir, Engine) {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Engine::create(dir.path(), "Learning").unwrap();
+    (dir, engine)
+}
+
+#[test]
+fn a_source_round_trips_through_a_file() {
+    let (dir, mut engine) = library();
+    let mut source = article(
+        "Protein requirements in adults",
+        2021,
+        vec![author("Nieminen", "Anna")],
+    );
+    source.pages = Some("612-620".into());
+    source.doi = Some("10.1000/example".into());
+
+    let (id, missing) = engine.source_create(source.clone()).unwrap();
+    assert!(missing.is_empty(), "this source is complete: {missing:?}");
+
+    // On disk, readable, in the flat sources directory.
+    let path = dir.path().join("sources/nieminen-2021.toml");
+    assert!(path.is_file(), "expected {}", path.display());
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        text.contains("title = \"Protein requirements in adults\""),
+        "{text}"
+    );
+
+    assert_eq!(engine.source_read(id).unwrap(), source);
+}
+
+#[test]
+fn an_incomplete_source_is_saved_and_reported_rather_than_refused() {
+    // The rule that decides whether somebody keeps a source they cannot fully describe.
+    let (_dir, mut engine) = library();
+    let mut source = Source::new(SourceType::Book, "Half-remembered book", Date::Year(2021));
+    source.contributors = vec![author("Nieminen", "Anna")];
+    // no publisher
+
+    let (id, missing) = engine.source_create(source).unwrap();
+    assert_eq!(missing, vec![Field::Publisher]);
+
+    // Saved, readable, and citable despite the gap.
+    assert!(engine.source_read(id).is_ok());
+    assert!(engine
+        .citation_format(id, Form::Parenthetical, None)
+        .unwrap()
+        .contains("Nieminen"));
+}
+
+#[test]
+fn citing_a_source_from_a_document_builds_its_reference_list() {
+    let (_dir, mut engine) = library();
+
+    let mut nieminen = article(
+        "Protein requirements in adults",
+        2021,
+        vec![author("Nieminen", "Anna")],
+    );
+    nieminen.pages = Some("612-620".into());
+    let (cited, _) = engine.source_create(nieminen).unwrap();
+
+    let uncited = article("Something else entirely", 2019, vec![author("Aho", "Ari")]);
+    engine.source_create(uncited).unwrap();
+
+    let topic = engine.topic_create(None, "Protein").unwrap();
+    let doc = engine.document_create(topic, "What protein is").unwrap();
+    let revision = engine.document_read(doc).unwrap().revision;
+    engine
+        .document_write(
+            doc,
+            format!("Nine essential amino acids.[^cite:{cited}@44-46]"),
+            revision,
+        )
+        .unwrap();
+
+    let list = engine.citation_reference_list(doc).unwrap();
+    assert_eq!(
+        list.len(),
+        1,
+        "only what the document actually cites: {list:?}"
+    );
+    assert!(list[0].starts_with("Nieminen, A. (2021)."), "{}", list[0]);
+}
+
+#[test]
+fn a_source_knows_which_documents_lean_on_it() {
+    // A study gets retracted. This is how you find the places you built on it.
+    let (_dir, mut engine) = library();
+    let (source, _) = engine
+        .source_create(article("Protein", 2021, vec![author("Nieminen", "Anna")]))
+        .unwrap();
+
+    let topic = engine.topic_create(None, "Protein").unwrap();
+    for title in ["First", "Second"] {
+        let doc = engine.document_create(topic, title).unwrap();
+        let revision = engine.document_read(doc).unwrap().revision;
+        engine
+            .document_write(doc, format!("Claimed.[^cite:{source}]"), revision)
+            .unwrap();
+    }
+
+    let citing = engine.source_citing_documents(source).unwrap();
+    let mut titles: Vec<String> = citing.into_iter().map(|d| d.title).collect();
+    titles.sort();
+    assert_eq!(titles, vec!["First", "Second"]);
+
+    // And deleting is two-phase: the plan names them before anything is removed.
+    assert_eq!(engine.source_delete_plan(source).unwrap().len(), 2);
+}
+
+#[test]
+fn disambiguation_is_computed_across_the_library_not_the_document() {
+    // Two sources by the same author in the same year. The letters must be identical no
+    // matter which document is asking, which is only true if the pass sees the whole library.
+    let (_dir, mut engine) = library();
+    let (first, _) = engine
+        .source_create(article(
+            "Amino acids",
+            2021,
+            vec![author("Nieminen", "Anna")],
+        ))
+        .unwrap();
+    let (second, _) = engine
+        .source_create(article(
+            "Zinc and protein",
+            2021,
+            vec![author("Nieminen", "Anna")],
+        ))
+        .unwrap();
+
+    assert_eq!(
+        engine
+            .citation_format(first, Form::Parenthetical, None)
+            .unwrap(),
+        "(Nieminen, 2021a)"
+    );
+    assert_eq!(
+        engine
+            .citation_format(second, Form::Parenthetical, None)
+            .unwrap(),
+        "(Nieminen, 2021b)"
+    );
+}
+
+#[test]
+fn sources_survive_the_index_being_deleted() {
+    // The property M0 established, now with sources in the library too.
+    let (dir, mut engine) = library();
+    let (id, _) = engine
+        .source_create(article("Protein", 2021, vec![author("Nieminen", "Anna")]))
+        .unwrap();
+    let before = engine.source_read(id).unwrap();
+    let cited_before = engine
+        .citation_format(id, Form::Parenthetical, None)
+        .unwrap();
+
+    std::fs::remove_dir_all(dir.path().join(".plc")).unwrap();
+    let engine = Engine::open(dir.path()).unwrap();
+
+    assert_eq!(engine.source_read(id).unwrap(), before);
+    assert_eq!(
+        engine
+            .citation_format(id, Form::Parenthetical, None)
+            .unwrap(),
+        cited_before
+    );
+}
+
+#[test]
+fn a_source_is_findable_by_its_author() {
+    let (_dir, mut engine) = library();
+    engine
+        .source_create(article(
+            "Protein requirements",
+            2021,
+            vec![author("Nieminen", "Anna")],
+        ))
+        .unwrap();
+
+    let hits = engine.search("Nieminen").unwrap();
+    assert!(
+        !hits.is_empty(),
+        "a saved source must be findable by who wrote it"
+    );
+}
+
+#[test]
+fn one_author_precedes_the_same_author_with_co_authors() {
+    // APA 7 §9.47. Sorting on the first author alone leaves these in title order, which puts
+    // the book first and is wrong.
+    let alone = article("Zzz last by title", 2021, vec![author("Nieminen", "Anna")]);
+    let together = article(
+        "Aaa first by title",
+        2021,
+        vec![author("Nieminen", "Anna"), author("Kallio", "Kai")],
+    );
+    let sources = vec![together.clone(), alone.clone()];
+    let list = reference_list(&sources, &Disambiguation::compute(&sources));
+
+    assert!(
+        list[0].starts_with("Nieminen, A. (2021)"),
+        "solo author first: {}",
+        list[0]
+    );
+    assert!(
+        list[1].starts_with("Nieminen, A., & Kallio"),
+        "co-authored second: {}",
+        list[1]
+    );
+}
+
+#[test]
+fn co_authored_works_order_by_the_second_author() {
+    let with_v = article(
+        "A",
+        2021,
+        vec![author("Nieminen", "Anna"), author("Virtanen", "Vi")],
+    );
+    let with_k = article(
+        "B",
+        2021,
+        vec![author("Nieminen", "Anna"), author("Kallio", "Kai")],
+    );
+    let sources = vec![with_v, with_k];
+    let list = reference_list(&sources, &Disambiguation::compute(&sources));
+    assert!(list[0].contains("Kallio"), "{}", list[0]);
+    assert!(list[1].contains("Virtanen"), "{}", list[1]);
+}
