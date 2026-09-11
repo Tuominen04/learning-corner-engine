@@ -6,7 +6,9 @@
 
 pub mod disambiguate;
 pub mod format;
+pub mod reference;
 pub mod source;
 
 pub use disambiguate::Disambiguation;
+pub use reference::CitationRef;
 pub use source::{Appraisal, Contributor, Date, Field, Role, Source, SourceType};
