@@ -47,6 +47,38 @@ pub fn write(path: &Path, contents: &str) -> Result<()> {
     sync_dir(parent)
 }
 
+/// Copy a file from outside the library to `path`, atomically.
+///
+/// The same temp-fsync-rename sequence as [`write`], for the same reason: an interrupted copy
+/// must leave the previous file or the new one, never half a PDF. The bytes are streamed
+/// rather than read into a `Vec` first — a scanned book is not a small file, and there is no
+/// reason to hold one in memory to put it on disk.
+pub fn copy_in(from: &Path, to: &Path) -> Result<()> {
+    let parent = to.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent).ctx(format!("creating {}", parent.display()))?;
+
+    let temp = temp_path_beside(to);
+
+    {
+        let mut source = File::open(from).ctx(format!("opening {}", from.display()))?;
+        let mut file =
+            File::create(&temp).ctx(format!("creating temporary file {}", temp.display()))?;
+        std::io::copy(&mut source, &mut file).ctx(format!("copying {}", from.display()))?;
+        file.sync_all()
+            .ctx(format!("flushing {}", temp.display()))?;
+    }
+
+    if let Err(e) = fs::rename(&temp, to) {
+        let _ = fs::remove_file(&temp);
+        return Err(crate::error::Error::io(
+            format!("replacing {}", to.display()),
+            e,
+        ));
+    }
+
+    sync_dir(parent)
+}
+
 /// Remove a file, tolerating its already being gone.
 pub fn remove(path: &Path) -> Result<()> {
     match fs::remove_file(path) {

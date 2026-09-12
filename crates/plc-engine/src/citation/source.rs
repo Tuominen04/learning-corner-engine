@@ -246,6 +246,15 @@ pub struct Source {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub appraisal: Option<Appraisal>,
+
+    /// The library's own copy of this source, as a **filename inside `sources/files/`**.
+    ///
+    /// A filename and never a path, because the library has to stay portable: recording where
+    /// the PDF sat on one computer would break the moment the folder moved, which is exactly
+    /// what a user is promised cannot happen. The copy is the point — the original can be
+    /// deleted out of a downloads folder and the source still has its paper.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
 }
 
 impl Source {
@@ -267,6 +276,7 @@ impl Source {
             url: None,
             retrieved: None,
             appraisal: None,
+            file: None,
         }
     }
 

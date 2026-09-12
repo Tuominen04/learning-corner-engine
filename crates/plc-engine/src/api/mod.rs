@@ -355,6 +355,14 @@ impl Engine {
     pub fn source_update(&mut self, source: Source) -> Result<Vec<Field>> {
         self.library.ensure_writable()?;
         let entry = self.expect(source.id, Kind::Source)?;
+
+        // The attached file is not the caller's to change here, and is carried over from what
+        // is already stored. An interface editing a title sends the fields its form knows
+        // about, and one that had not heard of attachments would otherwise detach the paper
+        // every time somebody fixed a typo. Attaching and detaching are their own operations.
+        let mut source = source;
+        source.file = self.store.read_source(&entry.path)?.entity.file;
+
         let missing = source.missing_fields();
         self.store.write_source(&entry.path, &source)?;
         self.index.rebuild(&self.store)?;
@@ -383,6 +391,11 @@ impl Engine {
     pub fn source_delete(&mut self, id: Id) -> Result<()> {
         self.library.ensure_writable()?;
         let entry = self.expect(id, Kind::Source)?;
+        // Its copy goes with it. Leaving the file behind would accumulate papers nobody can
+        // reach from inside the app and nobody can identify from outside it.
+        if let Some(name) = self.store.read_source(&entry.path)?.entity.file {
+            self.store.remove_source_file(&name)?;
+        }
         self.store.remove_source(&entry.path)?;
         self.index.rebuild(&self.store)?;
         Ok(())
@@ -403,6 +416,71 @@ impl Engine {
                 })
             })
             .collect()
+    }
+
+    /// Keep a copy of a file with a source, so the source has its paper for good.
+    ///
+    /// The file is **copied in**, not referenced. That is the entire point: the original can
+    /// be deleted out of a downloads folder, or the memory stick it came from unplugged, and
+    /// the library still has it. What is recorded is a filename inside the library, so moving
+    /// the library folder moves the file with it.
+    ///
+    /// Attaching a second time replaces the first, taking the old copy with it.
+    pub fn source_attach(&mut self, id: Id, from: &Path) -> Result<Source> {
+        self.library.ensure_writable()?;
+        ensure_pdf(from)?;
+
+        let entry = self.expect(id, Kind::Source)?;
+        let mut found = self.store.read_source(&entry.path)?;
+
+        // Named after the source's own record, so a folder listing pairs them by eye:
+        // `nieminen-2021.toml` beside `nieminen-2021.pdf`.
+        let stem = entry
+            .path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| Error::library("a source without a filename"))?;
+
+        let name = self.store.copy_source_file(stem, from)?;
+
+        // Only once the new copy is safely in place, and only if it did not overwrite it.
+        if let Some(previous) = found.entity.file.take() {
+            if previous != name {
+                self.store.remove_source_file(&previous)?;
+            }
+        }
+
+        found.entity.file = Some(name);
+        self.store.write_source(&entry.path, &found.entity)?;
+        self.index.rebuild(&self.store)?;
+        Ok(found.entity)
+    }
+
+    /// Forget a source's file, and delete the library's copy of it.
+    pub fn source_detach(&mut self, id: Id) -> Result<Source> {
+        self.library.ensure_writable()?;
+        let entry = self.expect(id, Kind::Source)?;
+        let mut found = self.store.read_source(&entry.path)?;
+
+        if let Some(previous) = found.entity.file.take() {
+            self.store.remove_source_file(&previous)?;
+        }
+        self.store.write_source(&entry.path, &found.entity)?;
+        self.index.rebuild(&self.store)?;
+        Ok(found.entity)
+    }
+
+    /// Where a source's file is, for opening it.
+    ///
+    /// `None` when the source has no file, and also when the record names one that is not
+    /// there — a user can delete anything in their own folder, and the honest answer to
+    /// "where is it" is then that there is nothing to open.
+    pub fn source_file(&self, id: Id) -> Result<Option<PathBuf>> {
+        let entry = self.expect(id, Kind::Source)?;
+        let Some(name) = self.store.read_source(&entry.path)?.entity.file else {
+            return Ok(None);
+        };
+        Ok(self.store.source_file_path(&name).filter(|p| p.is_file()))
     }
 
     pub fn source_required_fields(&self, source_type: crate::citation::SourceType) -> Vec<Field> {
@@ -525,6 +603,46 @@ impl Engine {
             revision: found.revision,
         })
     }
+}
+
+/// Refuse anything that is not a PDF, by extension **and** by content.
+///
+/// The extension alone is a claim rather than a fact — a renamed `.docx` carries one just as
+/// well — and a file that will not open is worth catching while the user is still looking at
+/// the file they chose, rather than months later when they go back to check a claim.
+fn ensure_pdf(from: &Path) -> Result<()> {
+    if !from.is_file() {
+        return Err(Error::invalid("file", "that file is not there"));
+    }
+
+    let named_pdf = from
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
+    if !named_pdf {
+        return Err(Error::invalid(
+            "file",
+            "only PDF files can be kept with a source",
+        ));
+    }
+
+    // `%PDF-` normally opens the file, but the specification tolerates junk ahead of it and
+    // readers do too, so the header is looked for rather than demanded at byte zero.
+    let mut head = [0u8; 1024];
+    let read = {
+        use std::io::Read;
+        let mut file = std::fs::File::open(from)
+            .map_err(|e| Error::io(format!("opening {}", from.display()), e))?;
+        file.read(&mut head)
+            .map_err(|e| Error::io(format!("reading {}", from.display()), e))?
+    };
+    if !head[..read].windows(5).any(|w| w == b"%PDF-") {
+        return Err(Error::invalid(
+            "file",
+            "that file is named .pdf but is not a PDF",
+        ));
+    }
+    Ok(())
 }
 
 /// Assemble the tree from paths. Parent/child is the directory relation, so the tree the user
