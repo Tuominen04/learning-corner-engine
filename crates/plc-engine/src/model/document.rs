@@ -56,9 +56,26 @@ impl Document {
         extract(&self.body, "[[", "]]")
     }
 
-    /// Sources this document cites, in `[^cite:id]` or `[^cite:id@locator]` form.
+    /// Sources this document cites, each once.
+    ///
+    /// Answers "what does this document draw on", so a source cited eleven times appears once.
+    /// For the eleven places themselves, see [`Self::citation_refs`].
     pub fn citations(&self) -> Vec<Id> {
-        extract(&self.body, "[^cite:", "]").into_iter().collect()
+        let mut found: Vec<Id> = Vec::new();
+        for reference in self.citation_refs() {
+            if !found.contains(&reference.source) {
+                found.push(reference.source);
+            }
+        }
+        found
+    }
+
+    /// Every citation in the body, in order, keeping repeats.
+    ///
+    /// Each one is a place in the text that has to be rendered, and two citations of the same
+    /// source can differ — one narrative, one with a page number.
+    pub fn citation_refs(&self) -> Vec<crate::citation::CitationRef> {
+        crate::citation::reference::parse_all(&self.body)
     }
 }
 
@@ -74,9 +91,7 @@ fn extract(body: &str, open: &str, close: &str) -> Vec<Id> {
         rest = &rest[start + open.len()..];
         let Some(end) = rest.find(close) else { break };
         let inner = &rest[..end];
-        // A locator follows an `@`: `[^cite:01J8…@44-46]`.
-        let id_part = inner.split('@').next().unwrap_or(inner);
-        if let Ok(id) = id_part.trim().parse::<Id>() {
+        if let Ok(id) = inner.trim().parse::<Id>() {
             if !found.contains(&id) {
                 found.push(id);
             }

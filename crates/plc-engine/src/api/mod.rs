@@ -432,6 +432,34 @@ impl Engine {
         ))
     }
 
+    /// In-text citations for many at once, disambiguated against the whole library.
+    ///
+    /// The reason this exists rather than looping over [`Self::citation_format`]: each of those
+    /// calls reads every source in the library and recomputes the disambiguation pass. A
+    /// document with fifteen citations over a hundred sources would read fifteen hundred files
+    /// to draw one screen. Here the library is read once and the pass runs once, whatever the
+    /// document asks for.
+    ///
+    /// A request naming a source that no longer exists yields `None` in its place rather than
+    /// failing the batch. One deleted source must not blank an entire document — the citation
+    /// that points nowhere is the one thing the reader needs to see.
+    pub fn citation_format_many(
+        &self,
+        requests: &[(Id, Form, Option<Locator>)],
+    ) -> Result<Vec<Option<String>>> {
+        let sources = self.source_list()?;
+        let disambiguation = Disambiguation::compute(&sources);
+        Ok(requests
+            .iter()
+            .map(|(source, form, locator)| {
+                sources
+                    .iter()
+                    .find(|s| s.id == *source)
+                    .map(|target| format::in_text(target, &disambiguation, *form, locator.as_ref()))
+            })
+            .collect())
+    }
+
     /// The reference list for one document, built from the sources it actually cites.
     ///
     /// Disambiguation is computed over the **whole library**, not over this document's

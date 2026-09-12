@@ -61,10 +61,67 @@ Two constructs in a document's text mean something to the engine:
 | Written | Means |
 | --- | --- |
 | `[[<id>]]` | A link to another document. Produces a backlink |
-| `[^cite:<id>]` or `[^cite:<id>@44-46]` | A citation of a source, optionally with a locator |
+| `[^cite:<id>]` | A citation of a source |
 
-Both are stored exactly as written and interpreted at read time. Malformed ones are ordinary
-text — someone typing `[[` mid-sentence is writing prose, not a broken link.
+A citation can also say **where** in the source, and **how** the sentence uses it:
+
+| Written | Renders as |
+| --- | --- |
+| `[^cite:<id>]` | `(Nieminen, 2021)` |
+| `[^cite:<id>@44]` | `(Nieminen, 2021, p. 44)` |
+| `[^cite:<id>@44-46]` | `(Nieminen, 2021, pp. 44–46)` |
+| `[^cite:<id>@para:7]` | `(Nieminen, 2021, para. 7)` |
+| `[^cite:<id>@chapter:3]` | `(Nieminen, 2021, Chapter 3)` |
+| `[^cite:<id>@time:1:04:22]` | `(Nieminen, 2021, 1:04:22)` |
+| `[^cite:<id>!narrative]` | `Nieminen (2021)` |
+| `[^cite:<id>@44!narrative]` | `Nieminen (2021, p. 44)` |
+
+A page is written bare, because it is what almost every citation carries and what the format
+already meant. The other kinds name themselves. `!narrative` is the only form ever written —
+the bracketed form is the default, and spelling it out would add five characters to nearly
+every citation for nothing.
+
+Each value has exactly one spelling. `@page:44` is deliberately **not** accepted: a second
+spelling for the same value means a document cannot be opened and saved without its bytes
+changing, and that guarantee is worth more than the convenience.
+
+Both constructs are stored exactly as written and interpreted at read time. Malformed ones are
+ordinary text — someone typing `[[` mid-sentence is writing prose, not a broken link, and a
+locator kind nobody recognises stays visible rather than being guessed at as a page.
+
+## Sources
+
+| Call | Does |
+| --- | --- |
+| `source_create(source)` | Saves it. Returns its identifier **and** any required field it lacks |
+| `source_read(id)` | Reads one back |
+| `source_update(source)` | Replaces it. Returns what it still lacks |
+| `source_list()` | Every source, already in reference-list order |
+| `source_delete_plan(id)` | The documents that cite it — ask before deleting, never after |
+| `source_delete(id)` | Removes it |
+| `source_citing_documents(id)` | Who leans on this. The call you want when a study is retracted |
+| `source_required_fields(type)` | What APA 7 needs for that kind of source |
+
+A source short of a required field is **saved and reported**, never refused. Somebody who
+cannot find a publisher must end up with an incomplete source rather than with none, and the
+reference list shows the gap plainly rather than inventing something.
+
+## Citations
+
+| Call | Does |
+| --- | --- |
+| `citation_format(source, form, locator)` | One in-text citation |
+| `citation_format_many(requests)` | Many at once. `None` where a source no longer exists |
+| `citation_reference_list(document)` | The reference list for what a document actually cites |
+
+Prefer `citation_format_many` for anything rendering a whole document. Each single call reads
+the library and recomputes the disambiguation pass, so fifteen citations over a hundred sources
+means fifteen hundred file reads; the batch reads once.
+
+Disambiguation is computed over the **whole library**, never over one document's sources. Two
+works by the same author in the same year are `2021a` and `2021b` everywhere they appear, which
+is a fact about the library rather than about either citation — so formatting citations in
+isolation would silently drop the suffixes.
 
 ## Search
 
@@ -81,7 +138,6 @@ These exist and return `Unimplemented`:
 
 | Call | Arrives in |
 | --- | --- |
-| `source_create`, `citation_format` | M1 — sources and APA 7 citations |
 | `backup_plan` | M2 — backup and restore |
 | `work_create` | M3 — parallel texts |
 | `map_read` | M4 — mind maps |

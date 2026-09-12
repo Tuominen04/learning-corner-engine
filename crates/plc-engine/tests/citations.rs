@@ -630,3 +630,138 @@ fn co_authored_works_order_by_the_second_author() {
     assert!(list[0].contains("Kallio"), "{}", list[0]);
     assert!(list[1].contains("Virtanen"), "{}", list[1]);
 }
+
+// ---- the syntax as it reaches a file ------------------------------------------
+//
+// The parser has its own unit tests. These go the whole way: written into a document, read
+// back off disk, formatted against the library. What a person typed has to survive all three.
+
+#[test]
+fn a_narrative_citation_reads_differently_from_a_parenthetical_one() {
+    // The difference the syntax was grown for. Same source, same document, two sentences that
+    // use it differently — and before `!narrative` existed, only one of them was expressible.
+    let (_dir, mut engine) = library();
+    let (id, _) = engine
+        .source_create(article(
+            "Protein requirements in adults",
+            2021,
+            vec![author("Nieminen", "Anna")],
+        ))
+        .unwrap();
+
+    let topic = engine.topic_create(None, "Protein").unwrap();
+    let doc = engine.document_create(topic, "What protein is").unwrap();
+    let revision = engine.document_read(doc).unwrap().revision;
+    engine
+        .document_write(
+            doc,
+            format!("[^cite:{id}!narrative] found nine.[^cite:{id}@44]"),
+            revision,
+        )
+        .unwrap();
+
+    let body = engine.document_read(doc).unwrap().body;
+    let refs = plc_engine::citation::reference::parse_all(&body);
+    assert_eq!(refs.len(), 2);
+
+    let requests: Vec<_> = refs
+        .iter()
+        .map(|r| (r.source, r.form, r.locator.clone()))
+        .collect();
+    let rendered = engine.citation_format_many(&requests).unwrap();
+
+    assert_eq!(rendered[0].as_deref(), Some("Nieminen (2021)"));
+    assert_eq!(rendered[1].as_deref(), Some("(Nieminen, 2021, p. 44)"));
+}
+
+#[test]
+fn a_timestamp_cites_as_a_timestamp_and_not_as_a_page() {
+    // Before locator kinds, `@1:04:22` was stored the same way `@44` was, so a lecture cited at
+    // an hour in would have rendered as "p. 1:04:22".
+    let (_dir, mut engine) = library();
+    let mut talk = Source::new(SourceType::Video, "How muscle repairs", Date::Year(2020));
+    talk.contributors = vec![author("Chen", "Wei")];
+    talk.site = Some("Aalto University".into());
+    let (id, _) = engine.source_create(talk).unwrap();
+
+    let refs = plc_engine::citation::reference::parse_all(&format!("[^cite:{id}@time:1:04:22]"));
+    let requests: Vec<_> = refs
+        .iter()
+        .map(|r| (r.source, r.form, r.locator.clone()))
+        .collect();
+
+    let rendered = engine.citation_format_many(&requests).unwrap();
+    assert_eq!(rendered[0].as_deref(), Some("(Chen, 2020, 1:04:22)"));
+}
+
+#[test]
+fn formatting_many_disambiguates_across_the_whole_library() {
+    // The property the batch call has to keep. Two works by the same author in the same year
+    // are 2021a and 2021b — a fact about the library, not about either citation, so a batch
+    // that formatted each in isolation would silently drop the suffixes.
+    let (_dir, mut engine) = library();
+    let (first, _) = engine
+        .source_create(article(
+            "Amino acids in adults",
+            2021,
+            vec![author("Nieminen", "Anna")],
+        ))
+        .unwrap();
+    let (second, _) = engine
+        .source_create(article(
+            "Zinc in adults",
+            2021,
+            vec![author("Nieminen", "Anna")],
+        ))
+        .unwrap();
+
+    let rendered = engine
+        .citation_format_many(&[
+            (first, Form::Parenthetical, None),
+            (second, Form::Parenthetical, None),
+        ])
+        .unwrap();
+
+    assert_eq!(rendered[0].as_deref(), Some("(Nieminen, 2021a)"));
+    assert_eq!(rendered[1].as_deref(), Some("(Nieminen, 2021b)"));
+}
+
+#[test]
+fn a_deleted_source_leaves_a_hole_rather_than_blanking_the_document() {
+    // One citation pointing nowhere must not take the other fourteen down with it. The hole is
+    // exactly what the reader needs to see.
+    let (_dir, mut engine) = library();
+    let (alive, _) = engine
+        .source_create(article("Still here", 2021, vec![author("Aho", "Ari")]))
+        .unwrap();
+    let gone: plc_engine::Id = "01J8ZQ8D4Q6S8W0W2Y4A6C8E0G".parse().unwrap();
+
+    let rendered = engine
+        .citation_format_many(&[
+            (gone, Form::Parenthetical, None),
+            (alive, Form::Parenthetical, None),
+        ])
+        .unwrap();
+
+    assert_eq!(rendered[0], None);
+    assert!(rendered[1].is_some());
+}
+
+#[test]
+fn a_document_citing_one_source_eleven_times_lists_it_once() {
+    let (_dir, mut engine) = library();
+    let (id, _) = engine
+        .source_create(article("Once", 2021, vec![author("Aho", "Ari")]))
+        .unwrap();
+
+    let topic = engine.topic_create(None, "Protein").unwrap();
+    let doc = engine.document_create(topic, "Repetitive").unwrap();
+    let revision = engine.document_read(doc).unwrap().revision;
+    let body = (0..11)
+        .map(|n| format!("Point {n}.[^cite:{id}@{n}]"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    engine.document_write(doc, body, revision).unwrap();
+
+    assert_eq!(engine.citation_reference_list(doc).unwrap().len(), 1);
+}
