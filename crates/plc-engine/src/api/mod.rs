@@ -418,15 +418,19 @@ impl Engine {
             .collect()
     }
 
-    /// Keep a copy of a file with a source, so the source has its paper for good.
+    /// Keep a file with a source, so the source has its paper for good.
     ///
-    /// The file is **copied in**, not referenced. That is the entire point: the original can
-    /// be deleted out of a downloads folder, or the memory stick it came from unplugged, and
-    /// the library still has it. What is recorded is a filename inside the library, so moving
-    /// the library folder moves the file with it.
+    /// The file is **brought into the library**, not referenced. That is the entire point: the
+    /// original can be deleted out of a downloads folder, or the memory stick it came from
+    /// unplugged, and the library still has it. What is recorded is a filename inside the
+    /// library, so moving the library folder moves the file with it.
+    ///
+    /// `keep` decides what becomes of the original — see [`Keep`]. Either way the library gets
+    /// its own copy first, and a `Move` only removes the original once that copy is written,
+    /// fsynced and recorded. There is no moment where the library's copy is the one at risk.
     ///
     /// Attaching a second time replaces the first, taking the old copy with it.
-    pub fn source_attach(&mut self, id: Id, from: &Path) -> Result<Source> {
+    pub fn source_attach(&mut self, id: Id, from: &Path, keep: Keep) -> Result<Source> {
         self.library.ensure_writable()?;
         ensure_pdf(from)?;
 
@@ -453,6 +457,19 @@ impl Engine {
         found.entity.file = Some(name);
         self.store.write_source(&entry.path, &found.entity)?;
         self.index.rebuild(&self.store)?;
+
+        if keep == Keep::Move {
+            // Last of all, and deliberately so: the copy is on disk, fsynced, and named in a
+            // record that has been written. Removing the original any earlier — even between
+            // the copy and the record — risks taking away the only one anybody can find.
+            //
+            // A removal that fails is not a failed attach. A read-only disc or a file the user
+            // cannot delete leaves the original where it was, which is exactly the `Copy`
+            // outcome: the source has its paper and nothing has been lost. Turning that into
+            // an error would report a failure for an operation that succeeded.
+            let _ = std::fs::remove_file(from);
+        }
+
         Ok(found.entity)
     }
 
@@ -603,6 +620,21 @@ impl Engine {
             revision: found.revision,
         })
     }
+}
+
+/// What becomes of the original when a file is attached to a source.
+///
+/// The library always ends up with its own copy; this only decides whether the file the user
+/// picked stays where it was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Keep {
+    /// Leave the original alone. The safe answer, and the right one for a file that lives
+    /// somewhere deliberate — a folder of papers, a shared drive, a memory stick.
+    Copy,
+    /// Remove the original once the library's copy is safe. What a downloads folder wants:
+    /// the file has been filed, and leaving a second copy behind is how that folder becomes
+    /// a place nobody can find anything in.
+    Move,
 }
 
 /// Refuse anything that is not a PDF, by extension **and** by content.
