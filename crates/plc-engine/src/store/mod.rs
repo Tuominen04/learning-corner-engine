@@ -29,6 +29,12 @@ pub const TOPICS_DIR: &str = "topics";
 /// lets one book be cited from fifty documents across it.
 pub const SOURCES_DIR: &str = "sources";
 
+/// Where the library keeps its own copies of source files.
+///
+/// Inside `sources/` rather than beside it, so a folder listing puts a source's record and
+/// its paper in the same place, and so moving the library moves both.
+pub const SOURCE_FILES_DIR: &str = "sources/files";
+
 /// An opaque token identifying the on-disk state of a file.
 ///
 /// Returned by every read and required by every write: if the file changed underneath —
@@ -229,6 +235,50 @@ impl Store {
 
     pub fn remove_source(&self, path: &Path) -> Result<()> {
         atomic::remove(&self.absolute(path))
+    }
+
+    // ---- source files ----------------------------------------------------------
+
+    /// Where a stored source file lives, as an absolute path.
+    ///
+    /// The name is what the source record holds, and is treated as a name and not as a path:
+    /// a record carrying `../../etc/passwd` — hand-edited, or written by something else —
+    /// must not reach outside the library.
+    pub fn source_file_path(&self, name: &str) -> Option<PathBuf> {
+        let mut parts = Path::new(name).components();
+        match (parts.next(), parts.next()) {
+            (Some(std::path::Component::Normal(one)), None) => {
+                Some(self.absolute(Path::new(SOURCE_FILES_DIR)).join(one))
+            }
+            _ => None,
+        }
+    }
+
+    /// Copy a file into the library, under a name derived from `stem`.
+    ///
+    /// Returns the name to record. The extension comes from the file being copied so the
+    /// stored copy opens in the same application the original would.
+    pub fn copy_source_file(&self, stem: &str, from: &Path) -> Result<String> {
+        let extension = from
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("pdf")
+            .to_ascii_lowercase();
+        let name = format!("{stem}.{extension}");
+        let to = self
+            .source_file_path(&name)
+            .ok_or_else(|| Error::invalid("file", "that name cannot be stored"))?;
+        atomic::copy_in(from, &to)?;
+        Ok(name)
+    }
+
+    pub fn remove_source_file(&self, name: &str) -> Result<()> {
+        match self.source_file_path(name) {
+            Some(path) => atomic::remove(&path),
+            // A name that cannot be resolved cannot have been written by us, so there is
+            // nothing of ours to remove and nothing to report.
+            None => Ok(()),
+        }
     }
 
     // ---- moving and removing ---------------------------------------------------
