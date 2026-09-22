@@ -5,6 +5,8 @@
 //! as a gap.
 
 use plc_engine::api::Engine;
+use plc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
+use plc_engine::index::Kind;
 use plc_engine::store::Revision;
 use plc_engine::{Error, Id};
 
@@ -246,6 +248,49 @@ fn search_finds_words_in_bodies_and_titles() {
         hits.iter().any(|h| h.title == "Types of protein"),
         "expected a hit for a word in a title"
     );
+}
+
+#[test]
+fn a_hit_says_what_it_is() {
+    // One index holds topics, documents and sources, so a hit that does not name its kind
+    // cannot be acted on: opening a source is not opening a document, and there is no other
+    // way to tell one row from another.
+    let mut fixture = Fixture::populated();
+
+    let mut source = Source::new(
+        SourceType::JournalArticle,
+        "Amino acids in adults",
+        Date::Year(2021),
+    );
+    source.contributors = vec![Contributor::person(Role::Author, "Nieminen", "Anna Maria")];
+    source.container = Some("Journal of Nutrition".into());
+    fixture.engine().source_create(source).unwrap();
+
+    let hits = fixture.engine().search("amino").unwrap();
+
+    // The same word is in a document body and in a source title, so this one query reaches
+    // both — which is exactly the case a caller has to be able to tell apart.
+    assert!(
+        hits.iter().any(|h| h.kind == Kind::Document),
+        "expected a document among {hits:?}"
+    );
+    assert!(
+        hits.iter().any(|h| h.kind == Kind::Source),
+        "expected a source among {hits:?}"
+    );
+
+    let topics = fixture.engine().search("protein").unwrap();
+    assert!(
+        topics.iter().any(|h| h.kind == Kind::Topic),
+        "expected a topic among {topics:?}"
+    );
+
+    // And the kind is the entity's own, not guessed from where the word was found.
+    let article = hits
+        .iter()
+        .find(|h| h.title == "Amino acids in adults")
+        .expect("the source");
+    assert_eq!(article.kind, Kind::Source);
 }
 
 #[test]

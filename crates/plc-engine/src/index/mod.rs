@@ -86,6 +86,16 @@ pub enum Kind {
 }
 
 impl Kind {
+    /// The inverse of [`Kind::as_str`], kept beside it so the two cannot drift apart.
+    fn from_str(raw: &str) -> Option<Self> {
+        match raw {
+            "topic" => Some(Kind::Topic),
+            "document" => Some(Kind::Document),
+            "source" => Some(Kind::Source),
+            _ => None,
+        }
+    }
+
     fn as_str(self) -> &'static str {
         match self {
             Kind::Topic => "topic",
@@ -107,6 +117,11 @@ impl Kind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hit {
     pub id: Id,
+    /// What was found. A search runs over the whole library — topics, documents and sources
+    /// are all in one index — so a hit that does not say which it is cannot be drawn or acted
+    /// on: opening a source is not opening a document, and the caller has no other way to
+    /// tell them apart.
+    pub kind: Kind,
     pub title: String,
     pub excerpt: String,
 }
@@ -523,8 +538,14 @@ impl Index {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, title, snippet(entity_fts, 2, '', '', '…', 12)
-                 FROM entity_fts WHERE entity_fts MATCH ?1 ORDER BY rank LIMIT 100",
+                // Joined rather than duplicated into the FTS table: `kind` is a fact about
+                // the entity, and a second copy inside the index is a second thing to keep
+                // true. The table name is repeated in `snippet()` on purpose — it takes the
+                // FTS table itself, not an alias.
+                "SELECT entity_fts.id, entity.kind, entity_fts.title,
+                        snippet(entity_fts, 2, '', '', '…', 12)
+                 FROM entity_fts JOIN entity ON entity.id = entity_fts.id
+                 WHERE entity_fts MATCH ?1 ORDER BY rank LIMIT 100",
             )
             .map_err(sql)?;
         let rows = stmt
@@ -533,15 +554,18 @@ impl Index {
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
                 ))
             })
             .map_err(sql)?;
 
         let mut hits = Vec::new();
         for row in rows {
-            let (id, title, excerpt) = row.map_err(sql)?;
+            let (id, kind, title, excerpt) = row.map_err(sql)?;
             hits.push(Hit {
                 id: id.parse()?,
+                kind: Kind::from_str(&kind)
+                    .ok_or_else(|| Error::library(format!("unknown entity kind {kind:?}")))?,
                 title,
                 excerpt,
             });
