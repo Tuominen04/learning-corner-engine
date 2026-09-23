@@ -294,6 +294,52 @@ fn a_hit_says_what_it_is() {
 }
 
 #[test]
+fn a_partial_word_finds_the_whole_one() {
+    // The search box answers while you type, so every query is a partial word until the
+    // moment it is not. Matching only whole tokens meant a document called "tuttujuttu" was
+    // reported as not existing while it was open on screen — "tuttu" is simply a different
+    // token from "tuttujuttu", and nothing in the query said "or anything starting with it".
+    let mut fixture = Fixture::populated();
+    let topic = fixture.engine().topic_create(None, "rename3").unwrap();
+    fixture
+        .engine()
+        .document_create(topic, "tuttujuttu")
+        .unwrap();
+
+    for (typed, expected) in [("tuttu", "tuttujuttu"), ("rename", "rename3")] {
+        let hits = fixture.engine().search(typed).unwrap();
+        assert!(
+            hits.iter().any(|h| h.title == expected),
+            "typing {typed:?} should find {expected:?}, got {:?}",
+            hits.iter().map(|h| &h.title).collect::<Vec<_>>()
+        );
+    }
+
+    // Each letter along the way finds it too, which is the point of a box that answers as you
+    // type: no keystroke in the middle of a word may report nothing.
+    for upto in 1..="tuttujuttu".len() {
+        let typed = &"tuttujuttu"[..upto];
+        assert!(
+            fixture
+                .engine()
+                .search(typed)
+                .unwrap()
+                .iter()
+                .any(|h| h.title == "tuttujuttu"),
+            "typing {typed:?} lost the document"
+        );
+    }
+
+    // A prefix and not a substring: this is the documented limit, so it is pinned rather than
+    // left to be discovered as a surprise later.
+    let hits = fixture.engine().search("juttu").unwrap();
+    assert!(
+        !hits.iter().any(|h| h.title == "tuttujuttu"),
+        "matching inside a word needs a different tokeniser — see fts_query"
+    );
+}
+
+#[test]
 fn search_handles_punctuation_without_erroring() {
     // FTS5 treats bare punctuation as query syntax. A user typing it must get results, not
     // a syntax error.
