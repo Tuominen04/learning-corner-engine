@@ -77,12 +77,48 @@ impl Document {
     pub fn citation_refs(&self) -> Vec<crate::citation::CitationRef> {
         crate::citation::reference::parse_all(&self.body)
     }
+
+    /// The body as a reader sees it, with its markers taken out.
+    ///
+    /// What the [index](crate::index) holds, and therefore what a search matches and what an
+    /// excerpt shows. The file on disk keeps `[^cite:01J8…]` and `[[01J8…]]`; the index has no
+    /// reason to. Those markers are addresses, not words — indexing them means an excerpt of
+    /// somebody's writing is mostly identifiers, and it means searching `cite` finds every
+    /// document that cites anything, because `[^cite:` tokenises to the word `cite`.
+    ///
+    /// Each marker becomes a single space rather than nothing, so `tissue.[^cite:01J8…] The`
+    /// does not come back as `tissue.The`.
+    pub fn searchable_text(&self) -> String {
+        strip_between(&strip_between(&self.body, "[^cite:", "]"), "[[", "]]")
+    }
 }
 
 /// Pull well-formed identifiers out of `open … close` pairs, ignoring anything malformed.
 ///
 /// Deliberately forgiving: a user typing `[[` mid-sentence is writing prose, not a broken
 /// link, and must not produce an error.
+/// Everything from each `open` to its next `close`, replaced by one space.
+///
+/// An unterminated marker is left alone: a stray `[[` somebody typed is text they wrote, and
+/// swallowing the rest of the document because of it would lose far more than it tidied.
+fn strip_between(body: &str, open: &str, close: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut rest = body;
+
+    while let Some(start) = rest.find(open) {
+        let after_open = &rest[start + open.len()..];
+        let Some(end) = after_open.find(close) else {
+            break;
+        };
+        out.push_str(&rest[..start]);
+        out.push(' ');
+        rest = &after_open[end + close.len()..];
+    }
+
+    out.push_str(rest);
+    out
+}
+
 fn extract(body: &str, open: &str, close: &str) -> Vec<Id> {
     let mut found = Vec::new();
     let mut rest = body;
@@ -104,6 +140,55 @@ fn extract(body: &str, open: &str, close: &str) -> Vec<Id> {
 
 #[cfg(test)]
 mod tests {
+    fn body(text: &str) -> Document {
+        let mut doc = Document::new("Probe");
+        doc.body = text.to_string();
+        doc
+    }
+
+    #[test]
+    fn markers_leave_the_words_around_them_intact() {
+        // Spacing is not normalised: a marker that already had a space after it leaves two.
+        // That is deliberate — FTS5 ignores runs of whitespace when tokenising, and HTML
+        // collapses them when an excerpt is drawn, so tidying it would be work with no reader
+        // to notice. The words are what matter, and they are untouched.
+        assert_eq!(
+            body("Protein repairs tissue.[^cite:01J8ZQ8D4Q6S8W0W2Y4A6C8E0G@44] The rest.")
+                .searchable_text(),
+            "Protein repairs tissue.  The rest."
+        );
+    }
+
+    #[test]
+    fn a_marker_becomes_a_space_and_not_nothing() {
+        // Otherwise the words on either side glue into one that nobody will ever search for.
+        let text = body("tissue.[^cite:01J8ZQ8D4Q6S8W0W2Y4A6C8E0G]The").searchable_text();
+        assert!(!text.contains("tissue.The"), "words were glued: {text:?}");
+    }
+
+    #[test]
+    fn links_go_too() {
+        assert_eq!(
+            body("See [[01J8ZQ8D4Q6S8W0W2Y4A6C8E0G]] for the kinds.").searchable_text(),
+            "See   for the kinds."
+        );
+    }
+
+    #[test]
+    fn an_unterminated_marker_is_left_as_written() {
+        // Somebody typing `[[` is writing, not addressing. Swallowing the rest of the document
+        // over it would lose far more than it tidied.
+        for text in ["a [[ b", "a [^cite: b", "[[", "[^cite:"] {
+            assert_eq!(body(text).searchable_text(), text, "changed {text:?}");
+        }
+    }
+
+    #[test]
+    fn a_body_without_markers_is_returned_unchanged() {
+        let text = "Protein is built from amino acids. Nothing to strip here.";
+        assert_eq!(body(text).searchable_text(), text);
+    }
+
     use super::*;
 
     #[test]
