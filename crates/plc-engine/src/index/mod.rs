@@ -655,10 +655,19 @@ fn digest(bytes: &[u8]) -> String {
 /// Escape a user's words so FTS5 treats them as terms rather than as query syntax.
 ///
 /// Without this, a search for `protein (2021)` is a syntax error rather than a search.
+/// A user's words, as an FTS5 query.
+///
+/// Each word is quoted so punctuation cannot be read as query syntax, and each is a **prefix**
+/// — `tuttu` finds `tuttujuttu`. Without the star, a search box that answers while you type
+/// says "nothing matches" after every keystroke until you happen to finish a whole word, which
+/// is the opposite of helping somebody find what they half-remember.
+///
+/// Prefix and not substring: `juttu` still does not find `tuttujuttu`. Matching inside a word
+/// needs the trigram tokenizer, which is a different index and its own decision.
 fn fts_query(input: &str) -> String {
     input
         .split_whitespace()
-        .map(|word| format!("\"{}\"", word.replace('"', "\"\"")))
+        .map(|word| format!("\"{}\"*", word.replace('"', "\"\"")))
         .collect::<Vec<_>>()
         .join(" ")
 }
