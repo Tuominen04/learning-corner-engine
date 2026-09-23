@@ -340,6 +340,76 @@ fn a_partial_word_finds_the_whole_one() {
 }
 
 #[test]
+fn what_is_searched_is_the_writing_not_the_markers() {
+    // The index holds a document as a reader sees it. Markers are addresses, not words, and
+    // indexing them costs three things at once: excerpts made of identifiers instead of
+    // somebody's own sentences, `cite` matching every document that cites anything, and ULIDs
+    // being matchable — by prefix, now that terms are prefixes.
+    let mut fixture = Fixture::populated();
+    let topic = fixture.engine().topic_create(None, "Probe").unwrap();
+    let doc = fixture
+        .engine()
+        .document_create(topic, "Suomi notes")
+        .unwrap();
+    let revision = fixture.engine().document_read(doc).unwrap().revision;
+    fixture
+        .engine()
+        .document_write(
+            doc,
+            "Suomiiiiiii [^cite:01M2BE6DYWCEGGBJGSHYFN6PJJ@34] and more text",
+            revision,
+        )
+        .unwrap();
+
+    for typed in ["cite", "01M2BE6DYWCEGGBJGSHYFN6PJJ", "01M2BE"] {
+        let hits = fixture.engine().search(typed).unwrap();
+        assert!(
+            hits.is_empty(),
+            "searching {typed:?} matched {:?} — markers are in the index",
+            hits.iter().map(|h| &h.title).collect::<Vec<_>>()
+        );
+    }
+
+    // The writing itself is still found, and the excerpt is the writing.
+    let hits = fixture.engine().search("suomi").unwrap();
+    let hit = hits
+        .iter()
+        .find(|h| h.title == "Suomi notes")
+        .expect("the document is still found by its own words");
+    assert!(
+        !hit.excerpt.contains("[^cite:") && !hit.excerpt.contains("01M2BE"),
+        "the excerpt still shows markup: {:?}",
+        hit.excerpt
+    );
+    assert!(
+        hit.excerpt.contains("more text"),
+        "lost the words around it: {:?}",
+        hit.excerpt
+    );
+
+    // The file on disk is untouched — the index is derived, the document is not.
+    assert!(fixture
+        .engine()
+        .document_read(doc)
+        .unwrap()
+        .body
+        .contains("[^cite:01M2BE6DYWCEGGBJGSHYFN6PJJ@34]"));
+
+    // And it holds across a reopen, which is the path an existing library takes: an index
+    // built under the old rules fails its version check, is thrown away, and is rebuilt from
+    // the files. Nobody has to know to delete anything.
+    fixture.reopen();
+    assert!(
+        fixture.engine().search("cite").unwrap().is_empty(),
+        "reopening brought the markers back"
+    );
+    assert!(
+        !fixture.engine().search("suomi").unwrap().is_empty(),
+        "reopening lost the document"
+    );
+}
+
+#[test]
 fn search_handles_punctuation_without_erroring() {
     // FTS5 treats bare punctuation as query syntax. A user typing it must get results, not
     // a syntax error.

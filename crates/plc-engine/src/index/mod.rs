@@ -19,7 +19,12 @@ use crate::store::{Problem, Scan, Store};
 
 /// Bumped whenever the tables below change. A mismatch triggers a rebuild rather than a
 /// migration — there is nothing here worth migrating.
-const INDEX_VERSION: u32 = 1;
+/// Bumped whenever what goes *into* the index changes, not only its schema — an index built
+/// by an older version is stale in a way no schema check would notice. Raising this is what
+/// makes an existing library reindex itself the next time it is opened.
+///
+/// 2: document bodies are indexed as readable text, with citation and link markers removed.
+const INDEX_VERSION: u32 = 2;
 
 const FILE: &str = "index.sqlite";
 
@@ -266,7 +271,7 @@ impl Index {
                 d.title(),
                 &d.meta.modified.to_string(),
                 &digest(d.body.as_bytes()),
-                &d.body,
+                &d.searchable_text(),
                 &found.path,
                 &found.revision.token(),
             )?;
@@ -362,7 +367,7 @@ impl Index {
             d.title(),
             &d.meta.modified.to_string(),
             &digest(d.body.as_bytes()),
-            &d.body,
+            &d.searchable_text(),
             &found.path,
             &found.revision.token(),
         )?;
