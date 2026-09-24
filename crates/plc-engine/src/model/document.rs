@@ -78,6 +78,36 @@ impl Document {
         crate::citation::reference::parse_all(&self.body)
     }
 
+    /// Images this document shows, in order, as written in the body.
+    ///
+    /// Each is a plain filename beside the document — `![Diagram](muscle-repair.png)` — never a
+    /// path. That is what keeps the `.md` readable outside this application: a Markdown viewer,
+    /// a text editor or a forge renders the picture because it is exactly where the file says
+    /// it is. Resolving a name to a path is the store's job, not the reader's.
+    pub fn images(&self) -> Vec<String> {
+        let mut found = Vec::new();
+        let mut rest = self.body.as_str();
+
+        while let Some(start) = rest.find("](") {
+            // `![` before the `](`, with the alt text between — anything else is an ordinary
+            // link, which is not ours to collect.
+            let before = &rest[..start];
+            rest = &rest[start + 2..];
+            let Some(end) = rest.find(')') else { break };
+            let name = &rest[..end];
+            rest = &rest[end + 1..];
+
+            let is_image = before
+                .rfind('[')
+                .is_some_and(|open| before[..open].ends_with('!'));
+            if is_image && !name.is_empty() && !found.contains(&name.to_string()) {
+                found.push(name.to_string());
+            }
+        }
+
+        found
+    }
+
     /// The body as a reader sees it, with its markers taken out.
     ///
     /// What the [index](crate::index) holds, and therefore what a search matches and what an
@@ -144,6 +174,21 @@ mod tests {
         let mut doc = Document::new("Probe");
         doc.body = text.to_string();
         doc
+    }
+
+    #[test]
+    fn finds_images_and_leaves_ordinary_links_alone() {
+        let doc = body(
+            "Text ![Diagram](muscle-repair.png) more.\n\n             A [link](https://example.com) is not an image.\n\n             ![](no-alt.jpg) and ![Again](muscle-repair.png)",
+        );
+        // Ordinary links stay out, an empty alt is still an image, and a repeat is one file.
+        assert_eq!(doc.images(), vec!["muscle-repair.png", "no-alt.jpg"]);
+    }
+
+    #[test]
+    fn an_unterminated_image_is_not_collected() {
+        assert!(body("![Diagram](muscle-repair.png").images().is_empty());
+        assert!(body("![Diagram]").images().is_empty());
     }
 
     #[test]

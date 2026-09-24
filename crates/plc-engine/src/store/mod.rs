@@ -272,6 +272,60 @@ impl Store {
         Ok(name)
     }
 
+    // ---- images beside a document ---------------------------------------------
+
+    /// Copy a file in as `name` inside `dir`, atomically.
+    pub fn copy_beside(&self, dir: &Path, name: &str, from: &Path) -> Result<()> {
+        let to = self.beside(dir, name)?;
+        atomic::copy_in(from, &to)
+    }
+
+    /// Move `name` from one folder to another, avoiding names already taken there.
+    ///
+    /// A name that cannot be moved is skipped rather than refused, and the move goes ahead.
+    ///
+    /// Two cases, one answer. The picture may be gone — somebody deleted it by hand. Or the
+    /// name may not be a name at all: a body is plain text, and a hand-edited
+    /// `![x](../../elsewhere.png)` must never be followed out of the folder it belongs to.
+    /// Either way the reference is already broken, and refusing to move somebody's document
+    /// over a broken picture would be the worse answer — it would strand the document too.
+    pub fn move_beside(
+        &self,
+        from_dir: &Path,
+        to_dir: &Path,
+        name: &str,
+        taken: &HashSet<String>,
+    ) -> Result<()> {
+        let Ok(from) = self.beside(from_dir, name) else {
+            return Ok(());
+        };
+        if !from.is_file() {
+            return Ok(());
+        }
+        let stem = Path::new(name)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("image");
+        let extension = Path::new(name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png");
+        let settled = format!("{}.{extension}", slug::unique(stem, taken));
+        atomic::rename(&from, &self.beside(to_dir, &settled)?)
+    }
+
+    /// A file beside a document, as an absolute path.
+    ///
+    /// The name is treated as a name: a body naming `../../elsewhere.png` — typed by hand, or
+    /// written by something else — must not reach outside the folder it belongs to.
+    fn beside(&self, dir: &Path, name: &str) -> Result<PathBuf> {
+        let mut parts = Path::new(name).components();
+        match (parts.next(), parts.next()) {
+            (Some(std::path::Component::Normal(one)), None) => Ok(self.absolute(dir).join(one)),
+            _ => Err(Error::invalid("image", "that name cannot be stored")),
+        }
+    }
+
     pub fn remove_source_file(&self, name: &str) -> Result<()> {
         match self.source_file_path(name) {
             Some(path) => atomic::remove(&path),
