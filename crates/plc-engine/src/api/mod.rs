@@ -290,7 +290,22 @@ impl Engine {
         let to = dir.join(format!("{}.md", slug::unique(&name, &taken)));
 
         if to != entry.path {
+            // The images go with it. They are referenced by bare filename, so a document that
+            // moved without them would keep pointing at names that are no longer beside it —
+            // broken pictures in the app and in every other Markdown reader.
+            let from_dir = entry
+                .path
+                .parent()
+                .ok_or_else(|| Error::library("a document outside any folder"))?
+                .to_path_buf();
+            let images = self.store.read_document(&entry.path)?.entity.images();
+
             self.store.move_path(&entry.path, &to)?;
+
+            let taken = self.store.taken_names(&dir)?;
+            for image in images {
+                self.store.move_beside(&from_dir, &dir, &image, &taken)?;
+            }
         }
         self.index.rebuild(&self.store)?;
         let found = self.store.read_document(&to)?;
@@ -473,6 +488,48 @@ impl Engine {
         Ok(found.entity)
     }
 
+    /// Keep a copy of an image with a document, beside it on disk.
+    ///
+    /// Returns the **filename** to write into the body as `![alt](name)`. Beside the document
+    /// and named plainly, because that is what keeps the `.md` readable outside this
+    /// application: a Markdown viewer, a text editor or a forge shows the picture, since the
+    /// file is exactly where the document says it is.
+    ///
+    /// `keep` decides what becomes of the original, as for a source's paper. The library's own
+    /// copy is written first either way.
+    pub fn document_attach_image(&mut self, id: Id, from: &Path, keep: Keep) -> Result<String> {
+        self.library.ensure_writable()?;
+        ensure_image(from)?;
+
+        let entry = self.expect(id, Kind::Document)?;
+        let dir = entry
+            .path
+            .parent()
+            .ok_or_else(|| Error::library("a document outside any folder"))?
+            .to_path_buf();
+
+        let stem = from.file_stem().and_then(|s| s.to_str()).unwrap_or("image");
+        let extension = from
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png")
+            .to_ascii_lowercase();
+
+        // Unique against everything already in the folder, documents included: two pictures
+        // both called `diagram.png` are two pictures, and one must not land on the other.
+        let taken = self.store.taken_names(&dir)?;
+        let name = format!("{}.{extension}", slug::unique(stem, &taken));
+        self.store.copy_beside(&dir, &name, from)?;
+
+        if keep == Keep::Move {
+            // Last, once the library's copy is on disk — the same ordering a source's paper
+            // gets, and for the same reason.
+            let _ = std::fs::remove_file(from);
+        }
+
+        Ok(name)
+    }
+
     /// Forget a source's file, and delete the library's copy of it.
     pub fn source_detach(&mut self, id: Id) -> Result<Source> {
         self.library.ensure_writable()?;
@@ -635,6 +692,40 @@ pub enum Keep {
     /// the file has been filed, and leaving a second copy behind is how that folder becomes
     /// a place nobody can find anything in.
     Move,
+}
+
+/// Refuse anything that is not an image this application can show.
+///
+/// Checked by content as well as by extension, for the same reason a PDF is: the extension is
+/// a claim, and a picture that will not render is worth catching while the user is still
+/// looking at the file they chose.
+fn ensure_image(from: &Path) -> Result<()> {
+    if !from.is_file() {
+        return Err(Error::invalid("image", "that file is not there"));
+    }
+
+    let mut head = [0u8; 16];
+    let read = {
+        use std::io::Read;
+        let mut file = std::fs::File::open(from)
+            .map_err(|e| Error::io(format!("opening {}", from.display()), e))?;
+        file.read(&mut head)
+            .map_err(|e| Error::io(format!("reading {}", from.display()), e))?
+    };
+    let head = &head[..read];
+
+    let known = head.starts_with(b"\x89PNG\r\n\x1a\n")
+        || head.starts_with(b"\xff\xd8\xff")
+        || head.starts_with(b"GIF87a")
+        || head.starts_with(b"GIF89a")
+        || (head.starts_with(b"RIFF") && head.len() >= 12 && &head[8..12] == b"WEBP");
+    if !known {
+        return Err(Error::invalid(
+            "image",
+            "that file is not a PNG, JPEG, GIF or WebP image",
+        ));
+    }
+    Ok(())
 }
 
 /// Refuse anything that is not a PDF, by extension **and** by content.
