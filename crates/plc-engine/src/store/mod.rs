@@ -314,6 +314,15 @@ impl Store {
         atomic::rename(&from, &self.beside(to_dir, &settled)?)
     }
 
+    /// A picture beside a document, if it is actually there.
+    ///
+    /// `None` covers both ways a name can lead nowhere: it is not a name that may be resolved
+    /// at all, or it is and the file has been deleted by hand. Neither is an error — a body is
+    /// plain text somebody may type anything into, and a picture is theirs to remove.
+    pub fn beside_file(&self, dir: &Path, name: &str) -> Option<PathBuf> {
+        self.beside(dir, name).ok().filter(|path| path.is_file())
+    }
+
     /// A file beside a document, as an absolute path.
     ///
     /// The name is treated as a name: a body naming `../../elsewhere.png` — typed by hand, or

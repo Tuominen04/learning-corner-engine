@@ -530,6 +530,24 @@ impl Engine {
         Ok(name)
     }
 
+    /// Where a document's picture is, for showing it.
+    ///
+    /// The document is named by id and the picture by the bare name its body carries, so the
+    /// interface never says where to look — the same arrangement a source's paper has, and
+    /// the reason the window needs no filesystem permission of its own.
+    ///
+    /// `None` when there is nothing to show: a name that may not be resolved, or one that may
+    /// and names a file no longer there. Bodies are plain text, so both are ordinary rather
+    /// than exceptional, and a missing picture must not fail the document around it.
+    pub fn document_image(&self, id: Id, name: &str) -> Result<Option<PathBuf>> {
+        let entry = self.expect(id, Kind::Document)?;
+        let dir = entry
+            .path
+            .parent()
+            .ok_or_else(|| Error::library("a document outside any folder"))?;
+        Ok(self.store.beside_file(dir, name))
+    }
+
     /// Forget a source's file, and delete the library's copy of it.
     pub fn source_detach(&mut self, id: Id) -> Result<Source> {
         self.library.ensure_writable()?;
