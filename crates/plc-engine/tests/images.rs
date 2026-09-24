@@ -232,3 +232,148 @@ fn an_image_survives_the_index_being_deleted() {
     let after = fs::read(fixture.root().join("topics/protein").join(&name)).unwrap();
     assert_eq!(before, after);
 }
+
+#[test]
+fn a_picture_that_was_attached_can_be_found_again() {
+    // Showing it is the other half of keeping it: the interface has the name the body carries
+    // and nothing else, and this is what turns that name into a file to read.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+    let downloads = tempfile::tempdir().unwrap();
+    let original = write_png(&downloads.path().join("diagram.png"), "the picture");
+
+    let name = fixture
+        .engine()
+        .document_attach_image(ids.what_protein_is, &original, Keep::Copy)
+        .unwrap();
+
+    let found = fixture
+        .engine()
+        .document_image(ids.what_protein_is, &name)
+        .unwrap()
+        .expect("the picture it had just written was not found");
+    assert!(fs::read(&found).unwrap().ends_with(b"the picture"));
+}
+
+#[test]
+fn a_picture_that_moved_with_its_document_is_still_found() {
+    // The name in the body does not change when a document moves, so the lookup has to follow
+    // the document rather than remember where the picture used to be.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+    let downloads = tempfile::tempdir().unwrap();
+    let original = write_png(&downloads.path().join("diagram.png"), "the picture");
+
+    let name = fixture
+        .engine()
+        .document_attach_image(ids.what_protein_is, &original, Keep::Copy)
+        .unwrap();
+    let view = fixture.engine().document_read(ids.what_protein_is).unwrap();
+    fixture
+        .engine()
+        .document_write(
+            ids.what_protein_is,
+            format!("{}\n\n![Diagram]({name})", view.body),
+            view.revision,
+        )
+        .unwrap();
+    fixture
+        .engine()
+        .document_move(ids.what_protein_is, ids.in_the_body)
+        .unwrap();
+
+    let found = fixture
+        .engine()
+        .document_image(ids.what_protein_is, &name)
+        .unwrap()
+        .expect("the picture was not found after the document moved");
+    assert!(found.starts_with(fixture.root().join("topics/protein/in-the-body")));
+}
+
+#[test]
+fn a_picture_deleted_by_hand_is_answered_rather_than_refused() {
+    // A user may delete anything in their own folder, and a document whose picture is gone
+    // must still open. The honest answer is that there is nothing to show.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+
+    assert_eq!(
+        fixture
+            .engine()
+            .document_image(ids.what_protein_is, "never-existed.png")
+            .unwrap(),
+        None
+    );
+}
+
+#[test]
+fn a_name_reaching_outside_the_folder_finds_nothing() {
+    // The file it points at genuinely exists, and is genuinely outside the library. A guard
+    // tested against a path that was never there passes whether or not it is doing anything.
+    let outside = tempfile::tempdir().unwrap();
+    let root = outside.path().join("library");
+    let mut engine = Engine::create(&root, "Learning").unwrap();
+    let topic = engine.topic_create(None, "Protein").unwrap();
+    let doc = engine.document_create(topic, "What protein is").unwrap();
+
+    // `topics/protein` is two folders below the root, so this is exactly the reach from the
+    // document's own folder to the tempdir the library sits in.
+    let elsewhere = write_png(&outside.path().join("elsewhere.png"), "not ours");
+    assert!(elsewhere.is_file(), "the test did not set itself up");
+    assert!(
+        root.join("topics/protein/../../../elsewhere.png").is_file(),
+        "the name does not reach the file, so the guard is not what is being tested"
+    );
+
+    assert_eq!(
+        engine
+            .document_image(doc, "../../../elsewhere.png")
+            .unwrap(),
+        None,
+        "a name reaching outside the folder was resolved"
+    );
+}
+
+#[test]
+fn a_picture_belongs_to_its_own_document() {
+    // Two documents in one folder is the ordinary case, and the lookup is scoped to the
+    // folder rather than to the document — so this is the promise worth stating: naming
+    // another document's id must not reach a picture through a shared folder by accident.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+    let downloads = tempfile::tempdir().unwrap();
+    let original = write_png(&downloads.path().join("diagram.png"), "the picture");
+
+    let name = fixture
+        .engine()
+        .document_attach_image(ids.what_protein_is, &original, Keep::Copy)
+        .unwrap();
+    let view = fixture.engine().document_read(ids.what_protein_is).unwrap();
+    fixture
+        .engine()
+        .document_write(
+            ids.what_protein_is,
+            format!("{}\n\n![Diagram]({name})", view.body),
+            view.revision,
+        )
+        .unwrap();
+    fixture
+        .engine()
+        .document_move(ids.what_protein_is, ids.in_the_body)
+        .unwrap();
+
+    // `types_of_protein` stayed in `topics/protein`; the picture went with the document that
+    // owns it, and asking that one is now the only way to find it.
+    assert_eq!(
+        fixture
+            .engine()
+            .document_image(ids.types_of_protein, &name)
+            .unwrap(),
+        None
+    );
+    assert!(fixture
+        .engine()
+        .document_image(ids.what_protein_is, &name)
+        .unwrap()
+        .is_some());
+}
