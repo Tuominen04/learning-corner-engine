@@ -145,10 +145,24 @@ impl Engine {
 
         let dir = self.topic_dir(id)?;
         let mut found = self.store.read_topic(&dir)?;
-        found.entity.name = name;
+        found.entity.name = name.clone();
+
+        // The name goes in first, in the folder that already exists. If the move below fails,
+        // the topic still knows what it is called — the old outcome, which was never wrong,
+        // only untidy.
         self.store.write_topic(&dir, &found.entity)?;
-        // The folder keeps its old slug: renaming it would be cosmetic, and moving a whole
-        // subtree to follow a rename risks far more than a stale-looking folder name costs.
+
+        // And then the folder follows it. Files are the source of truth, and a user is told
+        // they may open their library in a file manager — so a folder called `new-topic`
+        // holding a topic called "Protein" is this application failing its own promise, not a
+        // cosmetic detail. One `rename` moves the subtree, which is what `topic_move` already
+        // relies on; nothing inside is touched or rewritten.
+        let to = self.renamed_beside(&dir, &name)?;
+        if to != dir {
+            self.store.move_path(&dir, &to)?;
+        }
+
+        // Every document underneath has a new path now, and the index is where paths live.
         self.index.rebuild(&self.store)?;
         Ok(())
     }
@@ -185,6 +199,26 @@ impl Engine {
         self.store.move_path(&from, &to)?;
         self.index.rebuild(&self.store)?;
         Ok(())
+    }
+
+    /// Where something belongs once it has been renamed, beside where it sits now.
+    ///
+    /// The extension is the caller's business — a topic is a folder and a document is a
+    /// `.md`, and only the caller knows which it is holding.
+    ///
+    /// Its own name is not counted as taken. Without that, renaming a topic to the name it
+    /// already has would turn `protein` into `protein-2`, and a user who opened the rename
+    /// box and pressed Enter without changing anything would watch their folder get a number
+    /// on the end for no reason.
+    fn renamed_beside(&self, current: &Path, name: &str) -> Result<PathBuf> {
+        let parent = current
+            .parent()
+            .ok_or_else(|| Error::library("nothing in a library sits outside it"))?;
+        let mut taken = self.store.taken_names(parent)?;
+        if let Some(stem) = current.file_stem().and_then(|s| s.to_str()) {
+            taken.remove(stem);
+        }
+        Ok(parent.join(slug::unique(name, &taken)))
     }
 
     pub fn topic_tree(&self) -> Result<Vec<TopicNode>> {
@@ -262,15 +296,29 @@ impl Engine {
 
         let entry = self.expect(id, Kind::Document)?;
         let mut found = self.store.read_document(&entry.path)?;
-        found.entity.meta.title = title;
+        found.entity.meta.title = title.clone();
         found.entity.meta.modified = Timestamp::now();
-        let revision = self.store.write_document(&entry.path, &found.entity)?;
 
-        let found = crate::store::Found {
-            entity: found.entity,
-            path: entry.path,
-            revision,
-        };
+        // The title first, at the name the file already has, so a failure below leaves the
+        // document saying what the user just called it.
+        self.store.write_document(&entry.path, &found.entity)?;
+
+        // Then the file follows the title. Identity is the ULID inside the file, so this
+        // breaks no citation and no link — and leaving it behind is how a folder fills up
+        // with `untitled-2.md`, which is the promise of a readable library going quietly
+        // unkept.
+        //
+        // The pictures stay where they are: they sit beside the document in the same folder,
+        // which this does not change.
+        let path = self
+            .renamed_beside(&entry.path, &title)?
+            .with_extension("md");
+        if path != entry.path {
+            self.store.move_path(&entry.path, &path)?;
+        }
+
+        // Re-read rather than reuse: the revision has to be the one this file has now.
+        let found = self.store.read_document(&path)?;
         self.index.upsert_document(&found)?;
         self.view(found)
     }

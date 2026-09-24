@@ -37,12 +37,19 @@ A topic is a subject. It holds documents, and it can hold other topics, as deep 
 | Call | Does |
 | --- | --- |
 | `topic_create(parent, name)` | `None` as the parent makes a root topic |
-| `topic_rename(id, name)` | Renames it. Links and documents are unaffected |
+| `topic_rename(id, name)` | Renames it, and its folder with it. Links and documents are unaffected |
 | `topic_move(id, new_parent)` | `None` moves it to the root. Refuses to move a topic inside itself |
 | `topic_tree()` | The whole tree, with each topic's documents |
 
-**Renaming a topic does not rename its folder.** Moving a whole subtree to follow a rename risks
-far more than a slightly stale folder name costs.
+**A folder is named after the topic in it, and stays that way.** Renaming a topic renames its
+folder, which is one `rename` — the same operation `topic_move` already relies on, and nothing
+inside the folder is touched or rewritten. The name is written into `topic.toml` first, so a
+move that fails leaves the topic knowing what it is called.
+
+The alternative was leaving the folder under its first name, which costs nothing to implement
+and quietly breaks the promise the whole layout exists for: a library is meant to be worth
+opening in a file manager, and a folder called `new-topic` holding a topic called "Protein" is
+not.
 
 ## Documents
 
@@ -51,10 +58,19 @@ far more than a slightly stale folder name costs.
 | `document_create(topic, title)` | An empty document in that topic |
 | `document_read(id)` | The document, with the revision needed to write it |
 | `document_write(id, body, revision)` | Replaces the body, or `Conflict` if the file changed |
-| `document_rename(id, title)` | Changes the title; the identifier and body are untouched |
+| `document_rename(id, title)` | Changes the title and the filename; the identifier and body are untouched |
 | `document_move(id, topic)` | Moves it to another topic |
 | `document_delete(id)` | Removes it |
 | `backlinks(id)` | Documents linking here, derived from `[[id]]` in their text |
+
+**A document's file is named after its title, and follows it.** Identity is the ULID inside
+the file, so the `.md` can be moved freely: no citation, link, or open document breaks. The
+title is written first, at the name the file already has, so a failed move still leaves the
+document saying what it was just called. Pictures stay where they are — they sit beside the
+document in the same folder, which a rename does not change.
+
+A name already in use gets the usual `-2` suffix, and a document renamed to the title it
+already has keeps its filename rather than acquiring one.
 
 Two constructs in a document's text mean something to the engine:
 
