@@ -59,9 +59,24 @@ not.
 | `document_read(id)` | The document, with the revision needed to write it |
 | `document_write(id, body, revision)` | Replaces the body, or `Conflict` if the file changed |
 | `document_rename(id, title)` | Changes the title and the filename; the identifier and body are untouched |
+| `document_split(id, range, title, revision)` | Takes a byte range out into a new document beside this one, leaving `[[id]]` behind |
 | `document_move(id, topic)` | Moves it to another topic |
 | `document_delete(id)` | Removes it |
 | `backlinks(id)` | Documents linking here, derived from `[[id]]` in their text |
+
+**A split is one operation because a crash in the middle of three would lose writing.** The
+new document is written first, so the worst outcome of a failure afterwards is the text
+existing in two places — visible, and fixable. The other order loses it.
+
+`range` is a byte range into the body the caller last read, which is why `revision` is
+required: offsets into a file that changed underneath address different text, and splitting on
+them takes the wrong words out of somebody's document. A range landing inside a character is
+refused rather than panicking — this is an application for people writing Finnish and Russian,
+where multi-byte characters are the ordinary case.
+
+Citations and links inside the range move because they are *in* the text; there is no separate
+record of them to update. Pictures need nothing either: the new document is written beside the
+original, so the bare filenames its body carries still resolve.
 
 **A document's file is named after its title, and follows it.** Identity is the ULID inside
 the file, so the `.md` can be moved freely: no citation, link, or open document breaks. The
