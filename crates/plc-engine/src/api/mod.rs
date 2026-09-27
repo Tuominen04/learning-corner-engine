@@ -56,6 +56,15 @@ pub struct DocumentSummary {
     pub title: String,
 }
 
+/// The two documents a split leaves behind.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Split {
+    /// The document that was split, now carrying a link where the text used to be.
+    pub original: DocumentView,
+    /// The new document, holding the text that was taken out.
+    pub taken: DocumentView,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Status {
     pub name: String,
@@ -285,6 +294,105 @@ impl Engine {
         };
         self.index.upsert_document(&found)?;
         self.view(found)
+    }
+
+    /// Take part of a document out into a new one, leaving a link behind.
+    ///
+    /// The reason this is one operation rather than three calls from the interface: a crash
+    /// between writing the new document and rewriting the old one must not be able to lose
+    /// somebody's writing. The order here makes the worst outcome a duplicate rather than a
+    /// hole — the new document is written first, so a failure afterwards leaves the text in
+    /// two places, which is visible and fixable. The other order loses it.
+    ///
+    /// `range` is a byte range into the body the caller last read, which is why `expected` is
+    /// required: offsets into a file that has changed underneath address different text, and
+    /// splitting on them would cut somebody's document in the wrong place.
+    ///
+    /// Citations and links inside the range move because they are *in* the text — there is no
+    /// separate record of them to update. Pictures need nothing either: the new document is
+    /// written beside the original, so the bare filenames its body carries still resolve.
+    pub fn document_split(
+        &mut self,
+        id: Id,
+        range: std::ops::Range<usize>,
+        title: impl Into<String>,
+        expected: Revision,
+    ) -> Result<Split> {
+        self.library.ensure_writable()?;
+        let title = title.into();
+        if title.trim().is_empty() {
+            return Err(Error::invalid("title", "a document needs a title"));
+        }
+
+        let entry = self.expect(id, Kind::Document)?;
+        self.store.check_revision(&entry.path, expected)?;
+        let mut found = self.store.read_document(&entry.path)?;
+        let body = found.entity.body.clone();
+
+        if range.start > range.end || range.end > body.len() {
+            return Err(Error::invalid("range", "that is not part of this document"));
+        }
+        // Checked rather than assumed. A byte offset that lands inside a character would
+        // panic on the slice below, and this application is for people writing Finnish and
+        // Russian, where multi-byte characters are the ordinary case rather than the exotic
+        // one.
+        if !body.is_char_boundary(range.start) || !body.is_char_boundary(range.end) {
+            return Err(Error::invalid(
+                "range",
+                "that would cut a character in half",
+            ));
+        }
+
+        // Trimmed, because a selection that reaches one line further than intended would
+        // otherwise open the new document on a blank paragraph. Only the ends of what was
+        // taken; the text left behind is spliced exactly where it was.
+        let taken_text = body[range.clone()].trim();
+        if taken_text.is_empty() {
+            return Err(Error::invalid("range", "there is nothing there to take"));
+        }
+
+        // Beside the original rather than through `document_create`, which would need the
+        // topic's identifier for a folder this already has in hand — and the folder is what
+        // keeps the pictures working.
+        let dir = entry
+            .path
+            .parent()
+            .ok_or_else(|| Error::library("a document outside any folder"))?
+            .to_path_buf();
+        let taken_names = self.store.taken_names(&dir)?;
+        let path = dir.join(format!("{}.md", slug::unique(&title, &taken_names)));
+
+        let mut taken = Document::new(title);
+        taken.body = taken_text.to_string();
+        let taken_id = taken.id();
+        let revision = self.store.write_document(&path, &taken)?;
+        let taken = crate::store::Found {
+            entity: taken,
+            path,
+            revision,
+        };
+
+        // Only now is the original rewritten, and only now can anything be lost.
+        found.entity.body = format!(
+            "{}[[{taken_id}]]{}",
+            &body[..range.start],
+            &body[range.end..]
+        );
+        found.entity.meta.modified = Timestamp::now();
+        let revision = self.store.write_document(&entry.path, &found.entity)?;
+        let original = crate::store::Found {
+            entity: found.entity,
+            path: entry.path,
+            revision,
+        };
+
+        self.index.upsert_document(&taken)?;
+        self.index.upsert_document(&original)?;
+
+        Ok(Split {
+            original: self.view(original)?,
+            taken: self.view(taken)?,
+        })
     }
 
     pub fn document_rename(&mut self, id: Id, title: impl Into<String>) -> Result<DocumentView> {
