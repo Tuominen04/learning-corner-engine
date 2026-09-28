@@ -56,6 +56,31 @@ pub struct DocumentSummary {
     pub title: String,
 }
 
+/// What a topic holds, so that deleting it can be a decision rather than a surprise.
+///
+/// The documents are named rather than counted. "3 documents" is a number somebody agrees to;
+/// a list of titles is a thing they recognise, and one of them being called "Thesis notes" is
+/// how a mistake gets caught before it happens.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TopicContents {
+    /// Topics nested anywhere below this one.
+    pub topics: usize,
+    /// Every document anywhere below this one, in path order.
+    pub documents: Vec<DocumentSummary>,
+}
+
+/// What becomes of what is inside a topic being deleted.
+///
+/// There is no default. `backend-contract.md` has said since M0 that deleting a topic never
+/// deletes documents implicitly, and an operation that picks for you is exactly that.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Contents {
+    /// Delete the topic and everything under it.
+    Delete,
+    /// Move what is directly inside up to the topic's parent, then delete the empty topic.
+    MoveUp,
+}
+
 /// The two documents a split leaves behind.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Split {
@@ -228,6 +253,98 @@ impl Engine {
             taken.remove(stem);
         }
         Ok(parent.join(slug::unique(name, &taken)))
+    }
+
+    /// What deleting this topic would reach.
+    ///
+    /// Everything below it, not only what is directly inside: a topic with one empty-looking
+    /// sub-topic can hold a year of writing two levels down, and a plan that stopped at the
+    /// first level would be the most misleading possible answer.
+    pub fn topic_delete_plan(&self, id: Id) -> Result<TopicContents> {
+        let dir = self.topic_dir(id)?;
+
+        let mut contents = TopicContents::default();
+        for entry in self.index.entries(Kind::Topic)? {
+            if entry.path.starts_with(&dir) && entry.path != dir {
+                contents.topics += 1;
+            }
+        }
+        for entry in self.index.entries(Kind::Document)? {
+            if entry.path.starts_with(&dir) {
+                contents.documents.push(DocumentSummary {
+                    id: entry.id,
+                    title: entry.title,
+                });
+            }
+        }
+        Ok(contents)
+    }
+
+    /// Delete a topic, having been told what to do with what is inside it.
+    pub fn topic_delete(&mut self, id: Id, contents: Contents) -> Result<()> {
+        self.library.ensure_writable()?;
+        let dir = self.topic_dir(id)?;
+
+        if contents == Contents::MoveUp {
+            // The parent, as a topic. `topics/protein` has none — its parent is the root,
+            // and a document cannot live there.
+            let parent_dir = dir
+                .parent()
+                .ok_or_else(|| Error::library("a topic outside the library"))?
+                .to_path_buf();
+            let parent = if parent_dir == Path::new(TOPICS_DIR) {
+                None
+            } else {
+                Some(self.store.read_topic(&parent_dir)?.entity.id)
+            };
+
+            // Only what is *directly* inside. A nested topic carries its own contents with it,
+            // and moving those one at a time would be moving the same documents twice.
+            let documents: Vec<Id> = self
+                .index
+                .entries(Kind::Document)?
+                .into_iter()
+                .filter(|e| e.path.parent() == Some(dir.as_path()))
+                .map(|e| e.id)
+                .collect();
+            let topics: Vec<Id> = self
+                .index
+                .entries(Kind::Topic)?
+                .into_iter()
+                .filter(|e| e.path.parent() == Some(dir.as_path()))
+                .map(|e| e.id)
+                .collect();
+
+            match parent {
+                Some(parent) => {
+                    for document in documents {
+                        self.document_move(document, parent)?;
+                    }
+                }
+                None if documents.is_empty() => {}
+                // Said plainly rather than guessed at. Inventing a topic to hold them, or
+                // deleting them because there is nowhere to put them, are both worse than
+                // telling somebody that this particular choice is not available here.
+                None => return Err(Error::invalid(
+                    "contents",
+                    "a document cannot sit outside a topic, so these have nowhere to move up to",
+                )),
+            }
+
+            for topic in topics {
+                self.topic_move(topic, parent)?;
+            }
+
+            // Whatever is left is the topic's own `topic.toml` and anything a user put there
+            // by hand, so this is a tree removal and not an empty-folder one.
+            self.store.remove_tree(&dir)?;
+        } else {
+            self.store.remove_tree(&dir)?;
+        }
+
+        // Everything under the folder has gone or moved, and the index is where paths live.
+        self.index.rebuild(&self.store)?;
+        Ok(())
     }
 
     pub fn topic_tree(&self) -> Result<Vec<TopicNode>> {

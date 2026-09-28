@@ -354,6 +354,27 @@ impl Store {
         atomic::remove(&self.absolute(path))
     }
 
+    /// Remove a folder and everything inside it.
+    ///
+    /// The one operation here that is not reversible by any amount of care, which is why
+    /// nothing calls it without the user having been shown what is in the folder first.
+    pub fn remove_tree(&self, dir: &Path) -> Result<()> {
+        let absolute = self.absolute(dir);
+        if !absolute.exists() {
+            return Ok(());
+        }
+        fs::remove_dir_all(&absolute).ctx(format!("removing {}", absolute.display()))
+    }
+
+    /// Remove an empty folder, and say nothing if it is not there.
+    pub fn remove_empty(&self, dir: &Path) -> Result<()> {
+        let absolute = self.absolute(dir);
+        if !absolute.exists() {
+            return Ok(());
+        }
+        fs::remove_dir(&absolute).ctx(format!("removing {}", absolute.display()))
+    }
+
     /// Slugs already used inside a directory, so a new one can avoid them.
     pub fn taken_names(&self, dir: &Path) -> Result<HashSet<String>> {
         let absolute = self.absolute(dir);
