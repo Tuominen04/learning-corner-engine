@@ -172,6 +172,7 @@ impl Library {
         self.root.join(CONFLICTS_DIR)
     }
 
+    /// Change the name in `library.toml`. The folder is not touched.
     pub fn rename(&mut self, name: impl Into<String>) -> Result<()> {
         self.ensure_writable()?;
         let name = name.into();
@@ -282,6 +283,26 @@ mod tests {
             library.ensure_writable(),
             Err(Error::FormatTooNew { .. })
         ));
+    }
+
+    #[test]
+    fn a_library_open_read_only_cannot_be_renamed() {
+        let dir = temp();
+        Library::create(dir.path(), "Learning").unwrap();
+        bump_format_version(dir.path(), FORMAT_VERSION + 1);
+        let before = fs::read_to_string(dir.path().join(MANIFEST)).unwrap();
+
+        let mut library = Library::open_read_only(dir.path()).unwrap();
+        assert!(matches!(
+            library.rename("Nutrition"),
+            Err(Error::FormatTooNew { .. })
+        ));
+        assert_eq!(library.name(), "Learning");
+        assert_eq!(
+            fs::read_to_string(dir.path().join(MANIFEST)).unwrap(),
+            before,
+            "a future library's manifest must not be rewritten by an old build"
+        );
     }
 
     #[test]

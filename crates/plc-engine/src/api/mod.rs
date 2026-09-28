@@ -130,6 +130,16 @@ impl Engine {
         self.library.root()
     }
 
+    /// Give the library another name.
+    ///
+    /// The name, and nothing else. A topic or a document takes its file's name with it when it
+    /// is renamed, but the library's folder stays exactly where and what it is: the user chose
+    /// that folder, it may be one they use for other things — their whole `Documents`, even —
+    /// and where a library lives is never this application's decision.
+    pub fn library_rename(&mut self, name: impl Into<String>) -> Result<()> {
+        self.library.rename(name)
+    }
+
     pub fn status(&self) -> Result<Status> {
         Ok(Status {
             name: self.library.name().to_string(),
