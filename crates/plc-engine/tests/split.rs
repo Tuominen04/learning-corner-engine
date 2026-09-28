@@ -319,3 +319,110 @@ fn a_split_survives_the_index_being_deleted() {
         ids.what_protein_is
     );
 }
+
+#[test]
+fn a_range_that_would_cut_a_citation_in_half_is_refused() {
+    // Reported from a real library: a split left `3R4QFEM]` sitting in somebody's document.
+    // A citation the client does not render is ordinary text to the person reading it, so
+    // they can put a selection boundary inside it — and half an identifier is a file carrying
+    // text that means nothing, with nothing to say it happened.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+    let body = format!("Nine acids.[^cite:{CITE}] And more.");
+    let revision = set(&mut fixture, ids.what_protein_is, &body);
+
+    let inside = body.find("[^cite:").unwrap() + 20;
+    assert!(matches!(
+        fixture
+            .engine()
+            .document_split(ids.what_protein_is, 0..inside, "Taken", revision),
+        Err(Error::Invalid { .. })
+    ));
+    assert!(matches!(
+        fixture
+            .engine()
+            .document_split(ids.what_protein_is, inside..body.len(), "Taken", revision),
+        Err(Error::Invalid { .. })
+    ));
+
+    assert_eq!(
+        fixture
+            .engine()
+            .document_read(ids.what_protein_is)
+            .unwrap()
+            .body,
+        body,
+        "a refused split rewrote the document anyway"
+    );
+}
+
+#[test]
+fn the_markers_a_client_does_not_render_are_protected_too() {
+    // These are the dangerous ones, and the reason the check reads the body rather than
+    // trusting a client. `@page:44` is refused as a locator and stays literal text; a link to
+    // a document that is gone stays literal text. Being text is what lets a selection land
+    // inside them.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+
+    for marker in [
+        format!("[^cite:{CITE}@page:44]"),
+        "[^cite:not-a-ulid]".to_string(),
+        "[[gone-from-the-library]]".to_string(),
+        "![Diagram](my diagram.png)".to_string(),
+    ] {
+        let body = format!("Before {marker} after.");
+        let revision = set(&mut fixture, ids.what_protein_is, &body);
+        let inside = body.find(&marker).unwrap() + 4;
+
+        assert!(
+            matches!(
+                fixture
+                    .engine()
+                    .document_split(ids.what_protein_is, 0..inside, "Taken", revision),
+                Err(Error::Invalid { .. })
+            ),
+            "{marker} was cut in half"
+        );
+    }
+}
+
+#[test]
+fn a_range_that_only_touches_a_citation_is_allowed() {
+    // Touching is not cutting. A range ending the moment a citation begins does not include
+    // it, and refusing there would block an ordinary split for no reason.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+    let body = format!("Nine acids.[^cite:{CITE}] And more.");
+    let revision = set(&mut fixture, ids.what_protein_is, &body);
+
+    let opens = body.find("[^cite:").unwrap();
+    let closes = opens + format!("[^cite:{CITE}]").len();
+
+    assert!(fixture
+        .engine()
+        .document_split(ids.what_protein_is, 0..opens, "Taken", revision)
+        .is_ok());
+
+    let revision = fixture
+        .engine()
+        .document_read(ids.what_protein_is)
+        .unwrap()
+        .revision;
+    let body = fixture
+        .engine()
+        .document_read(ids.what_protein_is)
+        .unwrap()
+        .body;
+    let _ = closes;
+    let from = body.find("[^cite:").unwrap();
+    assert!(fixture
+        .engine()
+        .document_split(
+            ids.what_protein_is,
+            from..body.len(),
+            "Also taken",
+            revision
+        )
+        .is_ok());
+}

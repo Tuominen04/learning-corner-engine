@@ -74,6 +74,13 @@ them takes the wrong words out of somebody's document. A range landing inside a 
 refused rather than panicking — this is an application for people writing Finnish and Russian,
 where multi-byte characters are the ordinary case.
 
+A range landing inside a citation, a link or a picture is refused too. Cutting a character in
+half panics; cutting one of these in half **succeeds**, and the file quietly keeps `3R4QFEM]`
+where an identifier used to be. Every marker is checked, not only the ones a client renders —
+a client renders what it understands, so the markers it does not understand are the ones its
+user can put a selection boundary inside, which makes them the dangerous ones. A boundary
+*touching* a marker is not cutting it and is allowed.
+
 Citations and links inside the range move because they are *in* the text; there is no separate
 record of them to update. Pictures need nothing either: the new document is written beside the
 original, so the bare filenames its body carries still resolve.

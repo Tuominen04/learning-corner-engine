@@ -343,6 +343,21 @@ impl Engine {
             ));
         }
 
+        // And nor may either end sit inside a citation, a link or a picture. Cutting a
+        // character in half takes the process down and is caught above; cutting one of these
+        // in half is quieter and worse, because it succeeds — the file keeps `3R4QFEM]` where
+        // an identifier used to be, and nothing ever says so.
+        //
+        // Every construct is checked, not only the ones a client renders. A client renders
+        // what it understands, so the markers it does *not* understand are the ones its user
+        // can put a selection boundary inside, which makes them exactly the dangerous ones.
+        if let Some(what) = cut_in_half(&body, range.start, range.end) {
+            return Err(Error::invalid(
+                "range",
+                format!("that would cut {what} in half"),
+            ));
+        }
+
         // Trimmed, because a selection that reaches one line further than intended would
         // otherwise open the new document on a blank paragraph. Only the ends of what was
         // taken; the text left behind is spliced exactly where it was.
@@ -866,6 +881,39 @@ pub enum Keep {
     /// the file has been filed, and leaving a second copy behind is how that folder becomes
     /// a place nobody can find anything in.
     Move,
+}
+
+/// The syntax in a body that must survive a split whole, and what to call each kind.
+const CONSTRUCTS: &[(&str, &str, &str)] = &[
+    ("[^cite:", "]", "a citation"),
+    ("[[", "]]", "a link"),
+    ("![", ")", "a picture"),
+];
+
+/// Which construct, if any, one of these offsets lands inside.
+///
+/// A boundary touching one is not cutting it: a range ending exactly where a citation begins
+/// does not include the citation, and pushing it out would take one nobody asked to move.
+fn cut_in_half(body: &str, start: usize, end: usize) -> Option<&'static str> {
+    for (opens, closes, what) in CONSTRUCTS {
+        let mut from = 0;
+        while let Some(at) = body[from..].find(opens) {
+            let opened = from + at;
+            let after = opened + opens.len();
+            let Some(length) = body[after..].find(closes) else {
+                // Unterminated, so there is nothing whole here to break. A stray `[[` is
+                // text somebody typed.
+                break;
+            };
+            let closed = after + length + closes.len();
+
+            if (start > opened && start < closed) || (end > opened && end < closed) {
+                return Some(what);
+            }
+            from = closed;
+        }
+    }
+    None
 }
 
 /// Refuse anything that is not an image this application can show.
