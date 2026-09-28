@@ -39,7 +39,21 @@ A topic is a subject. It holds documents, and it can hold other topics, as deep 
 | `topic_create(parent, name)` | `None` as the parent makes a root topic |
 | `topic_rename(id, name)` | Renames it, and its folder with it. Links and documents are unaffected |
 | `topic_move(id, new_parent)` | `None` moves it to the root. Refuses to move a topic inside itself |
+| `topic_delete_plan(id)` | Everything anywhere below it: how many topics, and which documents |
+| `topic_delete(id, contents)` | `Delete` takes the whole subtree; `MoveUp` moves what is directly inside to the parent first |
 | `topic_tree()` | The whole tree, with each topic's documents |
+
+**Deleting a topic never decides what happens to the writing in it.** `contents` has no
+default, because an operation that picks for you is exactly the thing the contract has ruled
+out since M0. `topic_delete_plan` names every document anywhere below the topic rather than
+counting them — a list of titles is something a person recognises, and one of them being
+called "Thesis notes" is how a mistake gets caught before it happens. It reaches all the way
+down, because a topic with one empty-looking sub-topic can hold a year of writing two levels
+under it.
+
+`MoveUp` moves only what is *directly* inside: a nested topic carries its own contents with
+it. A root topic with documents has nowhere to move them to — a document cannot sit outside a
+topic — and that is refused rather than answered by inventing a topic or by deleting them.
 
 **A folder is named after the topic in it, and stays that way.** Renaming a topic renames its
 folder, which is one `rename` — the same operation `topic_move` already relies on, and nothing
