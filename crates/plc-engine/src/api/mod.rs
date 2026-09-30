@@ -8,12 +8,15 @@
 //! this crate's business, and keeping it that way is what lets files be renamed and moved
 //! without anything else having to know.
 
+use std::collections::HashSet;
+use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::atomic;
 use crate::citation::disambiguate::Disambiguation;
 use crate::citation::format::{self, Form, Locator};
 use crate::citation::{Field, Source};
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 use crate::id::Id;
 use crate::index::{Entry, Hit, Index, Kind, RebuildSummary};
 use crate::library::{Library, Manifest};
@@ -26,6 +29,18 @@ pub struct Engine {
     library: Library,
     store: Store,
     index: Index,
+}
+
+/// What renaming a library did with its folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LibraryFolder {
+    /// It follows the name: renamed to match, or already called what the name would call it.
+    Follows,
+    /// Left as it is, because it holds things that are not the library's, and renaming it
+    /// would move them too.
+    Shared,
+    /// Left as it is, because it is the top of a drive, which is named for the drive.
+    Drive,
 }
 
 /// A document as the interface sees it.
@@ -102,9 +117,26 @@ pub struct Status {
 impl Engine {
     // ---- library ---------------------------------------------------------------
 
+    /// Make a library in exactly the folder `root`.
+    ///
+    /// For tests, and for putting a library back where it was. A person making a new one goes
+    /// through [`Engine::create_in`], which makes the folder too.
     pub fn create(root: impl AsRef<Path>, name: impl Into<String>) -> Result<Self> {
         let library = Library::create(root, name)?;
         Self::from_library(library)
+    }
+
+    /// Make a new library in a folder of its own inside `location`, named after it.
+    ///
+    /// The folder somebody picks is where the library goes, not the library: choosing
+    /// `Documents` makes `Documents/learning/`, rather than filling `Documents` with a
+    /// library's files. The folder is named the way a topic's is, with a number on the end if
+    /// the name is already taken there.
+    pub fn create_in(location: impl AsRef<Path>, name: impl Into<String>) -> Result<Self> {
+        let location = location.as_ref();
+        let name = name.into();
+        let folder = slug::unique(&name, &names_in(location)?);
+        Self::create(location.join(folder), name)
     }
 
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
@@ -130,14 +162,48 @@ impl Engine {
         self.library.root()
     }
 
-    /// Give the library another name.
+    /// Give the library another name, and its folder with it when the folder is its own.
     ///
-    /// The name, and nothing else. A topic or a document takes its file's name with it when it
-    /// is renamed, but the library's folder stays exactly where and what it is: the user chose
-    /// that folder, it may be one they use for other things — their whole `Documents`, even —
-    /// and where a library lives is never this application's decision.
-    pub fn library_rename(&mut self, name: impl Into<String>) -> Result<()> {
-        self.library.rename(name)
+    /// A name follows what it holds, here as for a topic: a library called "Nutrition" in a
+    /// folder called `testing` is the kind of mismatch that makes a folder useless to read. But
+    /// only a folder holding nothing but the library is renamed. One that holds other things
+    /// too — somebody's whole `Documents`, or other libraries beside this one — is theirs, and
+    /// so is a drive's; those keep their names, and the answer says which it was.
+    pub fn library_rename(&mut self, name: impl Into<String>) -> Result<LibraryFolder> {
+        let name = name.into();
+        // The name first, in the folder where it already is. If moving the folder fails, the
+        // library is still called what it was asked to be — the old outcome, only untidy.
+        self.library.rename(name.clone())?;
+
+        let from = std::path::absolute(self.library.root())
+            .ctx(format!("finding {}", self.library.root().display()))?;
+        let Some(parent) = from.parent() else {
+            return Ok(LibraryFolder::Drive);
+        };
+        if is_top_of_a_drive(&from, parent) {
+            return Ok(LibraryFolder::Drive);
+        }
+        if !self.library.has_its_folder_to_itself()? {
+            return Ok(LibraryFolder::Shared);
+        }
+
+        let mut taken = names_in(parent)?;
+        if let Some(own) = from.file_name() {
+            taken.remove(&own.to_string_lossy().to_lowercase());
+        }
+        let to = parent.join(slug::unique(&name, &taken));
+        if to == from {
+            return Ok(LibraryFolder::Follows);
+        }
+
+        // The index lives inside the folder about to move. Let go of it first — Windows will
+        // not move a folder with a file open inside it, and SQLite finds its journal by path —
+        // and open everything again from wherever the library is afterwards.
+        self.index.release();
+        let moved = atomic::rename(&from, &to);
+        *self = Engine::open(if moved.is_ok() { &to } else { &from })?;
+        moved?;
+        Ok(LibraryFolder::Follows)
     }
 
     pub fn status(&self) -> Result<Status> {
@@ -1141,3 +1207,42 @@ fn build_tree(parent: &Path, topics: &[Entry], documents: &[Entry]) -> Vec<Topic
 
 /// Re-exported so callers do not need the module path for the one constant they touch.
 pub use topic::MANIFEST as TOPIC_MANIFEST;
+
+/// What is already in `dir`, lowercased.
+///
+/// Lowercased so that a new folder is never a near-twin of one already there: `learning` beside
+/// `Learning` is a mistake waiting to happen, and on some filesystems it is the same folder.
+fn names_in(dir: &Path) -> Result<HashSet<String>> {
+    let listing = format!("listing {}", dir.display());
+    match fs::read_dir(dir) {
+        Ok(entries) => entries
+            .map(|entry| {
+                entry
+                    .map(|e| e.file_name().to_string_lossy().to_lowercase())
+                    .ctx(listing.clone())
+            })
+            .collect(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HashSet::new()),
+        Err(e) => Err(Error::io(listing, e)),
+    }
+}
+
+/// Whether `dir` is where a drive is mounted: on another device from the folder it sits in.
+///
+/// A drive's folder is named for the drive — its label, usually — and renaming it is not the
+/// library's business even when the library is all that is on it. Looked at without following
+/// a symlink, so a library reached through one renames the link rather than its target.
+#[cfg(unix)]
+fn is_top_of_a_drive(dir: &Path, parent: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (fs::symlink_metadata(dir), fs::metadata(parent)) {
+        (Ok(dir), Ok(parent)) => dir.dev() != parent.dev(),
+        _ => false,
+    }
+}
+
+/// Elsewhere the top of a drive has no parent at all, which is caught before this is asked.
+#[cfg(not(unix))]
+fn is_top_of_a_drive(_dir: &Path, _parent: &Path) -> bool {
+    false
+}
