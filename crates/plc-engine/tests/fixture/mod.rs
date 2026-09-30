@@ -36,7 +36,21 @@ impl Fixture {
     /// sorting, and filenames are exercised in the languages this application is for.
     pub fn populated() -> Self {
         let dir = tempfile::tempdir().unwrap();
-        let mut engine = Engine::create(dir.path(), "Learning").unwrap();
+        let root = dir.path().to_path_buf();
+        Self::populated_at(dir, &root)
+    }
+
+    /// The same library, in a folder of its own inside the temporary directory — for tests
+    /// that rename the library, whose folder then moves. Moving the temporary directory itself
+    /// would leave it behind when the test ends.
+    pub fn populated_in(folder: &str) -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join(folder);
+        Self::populated_at(dir, &root)
+    }
+
+    fn populated_at(dir: tempfile::TempDir, root: &Path) -> Self {
+        let mut engine = Engine::create(root, "Learning").unwrap();
 
         let protein = engine.topic_create(None, "Protein").unwrap();
         let in_the_body = engine.topic_create(Some(protein), "In the body").unwrap();
@@ -84,16 +98,22 @@ impl Fixture {
         &mut self.engine
     }
 
+    /// Where the library is now — which renaming it can change.
     pub fn root(&self) -> &Path {
+        self.engine.root()
+    }
+
+    /// The temporary directory the library was made in.
+    pub fn dir(&self) -> &Path {
         self.dir.path()
     }
 
     pub fn index_path(&self) -> PathBuf {
-        self.dir.path().join(".plc/index.sqlite")
+        self.root().join(".plc/index.sqlite")
     }
 
     pub fn delete_index(&mut self) {
-        fs::remove_dir_all(self.dir.path().join(".plc")).unwrap();
+        fs::remove_dir_all(self.root().join(".plc")).unwrap();
     }
 
     pub fn corrupt_index(&mut self) {
@@ -102,7 +122,8 @@ impl Fixture {
 
     /// Close and reopen, as restarting the application would.
     pub fn reopen(&mut self) {
-        self.engine = Engine::open(self.dir.path()).unwrap();
+        let root = self.root().to_path_buf();
+        self.engine = Engine::open(root).unwrap();
     }
 }
 

@@ -26,6 +26,21 @@ pub const WORK_DIR: &str = ".plc";
 /// Copies kept when the user resolved a conflict. Never deleted automatically.
 pub const CONFLICTS_DIR: &str = ".conflicts";
 
+/// Everything a library keeps at its root, as `storage-format.md` lays it out.
+const OWN: &[&str] = &[
+    MANIFEST,
+    WORK_DIR,
+    CONFLICTS_DIR,
+    crate::store::TOPICS_DIR,
+    crate::store::SOURCES_DIR,
+    "works",
+    "maps",
+];
+
+/// What a file manager leaves in any folder it has shown, to remember how it showed it. It
+/// belongs to the folder wherever the folder goes, so it makes no folder anybody else's.
+const FOLDER_NOTES: &[&str] = &[".directory", ".DS_Store", "Thumbs.db", "desktop.ini"];
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Manifest {
     pub id: Id,
@@ -56,6 +71,28 @@ impl Library {
                 "path",
                 format!("{} already holds a library", root.display()),
             ));
+        }
+        // One library inside another is two libraries claiming the same files: backing up the
+        // outer one copies the inner, and neither is what anybody meant.
+        if let Some(outer) = root
+            .ancestors()
+            .skip(1)
+            .find(|dir| dir.join(MANIFEST).is_file())
+        {
+            let reason = match Library::open_read_only(outer) {
+                Ok(outer_library) => format!(
+                    "{} is inside the library “{}”, at {}; a library cannot go inside another",
+                    root.display(),
+                    outer_library.name(),
+                    outer.display()
+                ),
+                Err(_) => format!(
+                    "{} is inside the library at {}; a library cannot go inside another",
+                    root.display(),
+                    outer.display()
+                ),
+            };
+            return Err(Error::invalid("path", reason));
         }
 
         fs::create_dir_all(&root).ctx(format!("creating {}", root.display()))?;
@@ -172,7 +209,8 @@ impl Library {
         self.root.join(CONFLICTS_DIR)
     }
 
-    /// Change the name in `library.toml`. The folder is not touched.
+    /// Change the name in `library.toml`. The folder is not touched here — whether it follows
+    /// is [`crate::api::Engine::library_rename`]'s decision.
     pub fn rename(&mut self, name: impl Into<String>) -> Result<()> {
         self.ensure_writable()?;
         let name = name.into();
@@ -181,6 +219,23 @@ impl Library {
         }
         self.manifest.name = name;
         self.write_manifest()
+    }
+
+    /// Whether everything in the library's folder is the library's own.
+    ///
+    /// Only then is the folder the library's to rename. One that holds other things as well —
+    /// somebody's whole `Documents`, or other libraries beside this one — is theirs, and
+    /// renaming it would move all of it.
+    pub fn has_its_folder_to_itself(&self) -> Result<bool> {
+        let listing = format!("listing {}", self.root.display());
+        for entry in fs::read_dir(&self.root).ctx(listing.clone())? {
+            let name = entry.ctx(listing.clone())?.file_name();
+            let name = name.to_string_lossy();
+            if !OWN.contains(&name.as_ref()) && !FOLDER_NOTES.contains(&name.as_ref()) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     /// True for paths the engine owns. Nothing outside these is ever deleted implicitly.

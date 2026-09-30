@@ -171,6 +171,18 @@ impl Index {
         Ok(index)
     }
 
+    /// Let go of the database file, so that the folder holding it can be moved.
+    ///
+    /// The index is no use afterwards, and is not meant to be: whoever lets go of it opens a
+    /// new one from wherever the library ends up.
+    pub fn release(&mut self) {
+        if let Ok(nothing) = Connection::open_in_memory() {
+            let held = std::mem::replace(&mut self.conn, nothing);
+            // Dropped either way; closing explicitly only reports what dropping would not.
+            let _ = held.close();
+        }
+    }
+
     fn open_existing(path: &Path) -> Result<Self> {
         let conn = Connection::open(path).map_err(sql)?;
 
