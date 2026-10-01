@@ -127,8 +127,9 @@ fn all_distinct(prefixes: &[&[String]]) -> bool {
 
 /// **Same authors, same year, different works.**
 ///
-/// Suffix the year `a`, `b`, `c`, ordered by the reference-list title so the letters are
-/// stable rather than an accident of insertion order.
+/// Suffix the year `a`, `b`, `c`, ordered by title the way the reference list orders them, so
+/// the letters are stable rather than an accident of insertion order, and run down the list in
+/// order.
 fn assign_year_suffixes(sources: &[Source], entries: &mut HashMap<Id, Entry>) {
     let mut groups: HashMap<(Vec<String>, Option<i32>), Vec<&Source>> = HashMap::new();
     for source in sources {
@@ -142,7 +143,7 @@ fn assign_year_suffixes(sources: &[Source], entries: &mut HashMap<Id, Entry>) {
         if group.len() < 2 {
             continue;
         }
-        group.sort_by_key(|source| source.title.to_lowercase());
+        group.sort_by_key(|source| super::format::title_sort_key(&source.title));
         for (position, source) in group.iter().enumerate() {
             if let Some(entry) = entries.get_mut(&source.id) {
                 // 26 works by the same authors in one year is beyond what a letter can carry;

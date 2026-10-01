@@ -92,8 +92,16 @@ pub fn in_text(
 
 /// The year, plus any disambiguating letter. `n.d.` when there is no date.
 fn year_label(source: &Source, entry: &Entry) -> String {
-    let mut year = source.date.year_text();
-    if let Some(suffix) = entry.year_suffix {
+    with_letter(source.date.year_text(), source.date, entry.year_suffix)
+}
+
+/// A year with its letter: `2021a` — but `n.d.-a`, because a letter run straight onto the
+/// full stop of `n.d.` reads as part of the abbreviation (APA 7 §8.19).
+fn with_letter(mut year: String, date: Date, suffix: Option<char>) -> String {
+    if let Some(suffix) = suffix {
+        if date == Date::NoDate {
+            year.push('-');
+        }
         year.push(suffix);
     }
     year
@@ -454,20 +462,22 @@ pub fn reference_order(a: &Source, b: &Source) -> std::cmp::Ordering {
 
     // Case-folded comparison. Locale-aware collation is a later refinement; byte order is
     // simply wrong for the Finnish and Cyrillic names this application is built for.
+    // Works with no date come before the dated ones by the same authors (APA 7 §9.47).
     keys(a)
         .cmp(&keys(b))
         .then(
             a.date
                 .year()
-                .unwrap_or(i32::MAX)
-                .cmp(&b.date.year().unwrap_or(i32::MAX)),
+                .unwrap_or(i32::MIN)
+                .cmp(&b.date.year().unwrap_or(i32::MIN)),
         )
-        .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+        .then(title_sort_key(&a.title).cmp(&title_sort_key(&b.title)))
 }
 
 /// A title as it files in a reference list: by its first significant word, so "The" and
-/// "A" and "An" at the start are passed over (APA 7 §9.47).
-fn title_sort_key(title: &str) -> String {
+/// "A" and "An" at the start are passed over (APA 7 §9.47). The same order decides which of two
+/// works from one year is `a` and which is `b`.
+pub(crate) fn title_sort_key(title: &str) -> String {
     let title = title.trim().to_lowercase();
     for article in ["the ", "an ", "a "] {
         if let Some(rest) = title.strip_prefix(article) {
@@ -488,18 +498,11 @@ pub fn reference_list(sources: &[Source], disambiguation: &Disambiguation) -> Ve
 }
 
 fn reference_date(source: &Source, entry: &Entry) -> String {
-    let base = match source.date {
-        Date::NoDate => "n.d.".to_string(),
-        Date::Year(y) => y.to_string(),
-        Date::Full(y, m, d) => format!("{y}, {} {d}", month_name(m)),
-    };
-    match entry.year_suffix {
-        // The letter follows the year, not the whole date: "2021a, September 6" is wrong.
-        Some(suffix) => match source.date {
-            Date::Full(y, m, d) => format!("{y}{suffix}, {} {d}", month_name(m)),
-            _ => format!("{base}{suffix}"),
-        },
-        None => base,
+    // The letter follows the year, not the whole date: "2021, September 6a" is wrong.
+    let year = with_letter(source.date.year_text(), source.date, entry.year_suffix);
+    match source.date {
+        Date::Full(_, m, d) => format!("{year}, {} {d}", month_name(m)),
+        Date::NoDate | Date::Year(_) => year,
     }
 }
 

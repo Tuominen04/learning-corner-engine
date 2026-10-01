@@ -179,6 +179,46 @@ fn same_authors_same_year_get_letters_ordered_by_title() {
 }
 
 #[test]
+fn letters_follow_titles_without_their_article() {
+    // "The amino story" files under A, so it is the 2021a — under T it would be the b.
+    let the = article("The amino story", 2021, vec![author("Nieminen", "Anna")]);
+    let basics = article("Basics of protein", 2021, vec![author("Nieminen", "Anna")]);
+    let sources = vec![basics.clone(), the.clone()];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        in_text(&the, &d, Form::Parenthetical, None),
+        "(Nieminen, 2021a)"
+    );
+    assert_eq!(
+        in_text(&basics, &d, Form::Parenthetical, None),
+        "(Nieminen, 2021b)"
+    );
+    let list = reference_list(&sources, &d);
+    assert!(list[0].contains("(2021a). The amino story."), "{}", list[0]);
+}
+
+#[test]
+fn undated_works_by_one_author_take_their_letter_after_a_hyphen() {
+    // "n.d.a" reads as a longer abbreviation. APA 7 writes n.d.-a.
+    let mut first = article("Amino acids", 2021, vec![author("Nieminen", "Anna")]);
+    first.date = Date::NoDate;
+    let mut second = article("Zinc", 2021, vec![author("Nieminen", "Anna")]);
+    second.date = Date::NoDate;
+    let sources = vec![second.clone(), first.clone()];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        in_text(&first, &d, Form::Parenthetical, None),
+        "(Nieminen, n.d.-a)"
+    );
+    assert_eq!(
+        in_text(&second, &d, Form::Narrative, None),
+        "Nieminen (n.d.-b)"
+    );
+    let list = reference_list(&sources, &d);
+    assert!(list[0].starts_with("Nieminen, A. (n.d.-a)."), "{}", list[0]);
+}
+
+#[test]
 fn two_authors_sharing_a_surname_are_told_apart_by_initials() {
     let anna = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
     let jussi = article("Iron", 2019, vec![author("Nieminen", "Jussi")]);
@@ -410,6 +450,18 @@ fn the_list_is_alphabetical_then_by_year_then_by_title() {
     // And the two by the same author in one year carry their letters here too.
     assert!(list[1].contains("(2021a)"), "{}", list[1]);
     assert!(list[2].contains("(2021b)"), "{}", list[2]);
+}
+
+#[test]
+fn a_work_with_no_date_comes_before_the_dated_works_of_its_author() {
+    // APA 7 §9.47: n.d. first, then the years in order.
+    let dated = article("Protein", 2019, vec![author("Nieminen", "Anna")]);
+    let mut undated = article("Zinc", 2019, vec![author("Nieminen", "Anna")]);
+    undated.date = Date::NoDate;
+    let sources = vec![dated, undated];
+    let list = reference_list(&sources, &Disambiguation::compute(&sources));
+    assert!(list[0].starts_with("Nieminen, A. (n.d.)."), "{}", list[0]);
+    assert!(list[1].starts_with("Nieminen, A. (2019)."), "{}", list[1]);
 }
 
 #[test]
