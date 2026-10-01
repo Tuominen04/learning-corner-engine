@@ -50,37 +50,57 @@ fn en_dash(value: &str) -> String {
 
 // ---- in-text -------------------------------------------------------------------
 
-/// The in-text citation for one source.
+/// One work cited at one place in a document.
+#[derive(Debug, Clone, Copy)]
+pub struct Cite<'a> {
+    pub source: &'a Source,
+    pub locator: Option<&'a Locator>,
+    /// Whether its group author's short form was introduced earlier in the same document. The
+    /// first citation spells the group out and introduces the short form; every one after it
+    /// is cited by the short form alone — `(WHO, 2019)` (APA 7 §8.21).
+    pub introduced: bool,
+}
+
+/// The in-text citation for one source, introducing its group author's short form if it has
+/// one, as a first citation does.
 pub fn in_text(
     source: &Source,
     disambiguation: &Disambiguation,
     form: Form,
     locator: Option<&Locator>,
 ) -> String {
+    in_text_cite(
+        Cite {
+            source,
+            locator,
+            introduced: false,
+        },
+        disambiguation,
+        form,
+    )
+}
+
+/// The in-text citation for one work at one place in a document.
+pub fn in_text_cite(cite: Cite, disambiguation: &Disambiguation, form: Form) -> String {
+    let Cite {
+        source,
+        locator,
+        introduced,
+    } = cite;
     let entry = disambiguation.get(source.id);
-    let names = author_label(source, &entry, form);
+    let names = author_label(source, &entry, form, introduced);
     let year = year_label(source, &entry);
 
     match form {
-        Form::Parenthetical => {
-            // A title standing in for an absent author already ends with a comma inside its
-            // closing quote — APA sets ("Protein requirements," 2021) — so adding the usual
-            // separator would double it.
-            let mut out = if names.ends_with(',') || names.ends_with('\u{201d}') {
-                format!("{names} {year}")
-            } else {
-                format!("{names}, {year}")
-            };
-            if let Some(locator) = locator {
-                out.push_str(&format!(", {}", locator.render()));
-            }
-            format!("({out})")
-        }
+        Form::Parenthetical => format!("({})", parenthetical_part(&names, &year, locator)),
         Form::Narrative => {
             // A group introducing its short form puts it inside the parentheses, ahead of the
             // year: World Health Organization (WHO, 2019).
-            let mut inside: Vec<String> =
-                introduced(source).map(str::to_string).into_iter().collect();
+            let mut inside: Vec<String> = short_form(source)
+                .filter(|_| !introduced)
+                .map(|(_, short)| short.to_string())
+                .into_iter()
+                .collect();
             inside.push(year);
             if let Some(locator) = locator {
                 inside.push(locator.render());
@@ -88,6 +108,74 @@ pub fn in_text(
             format!("{names} ({})", inside.join(", "))
         }
     }
+}
+
+/// What one work puts inside parentheses: `Nieminen, 2021, p. 44`.
+fn parenthetical_part(names: &str, year: &str, locator: Option<&Locator>) -> String {
+    // A title standing in for an absent author already ends with a comma inside its closing
+    // quote — APA sets ("Protein requirements," 2021) — so adding the usual separator would
+    // double it.
+    let mut out = if names.ends_with(',') || names.ends_with('\u{201d}') {
+        format!("{names} {year}")
+    } else {
+        format!("{names}, {year}")
+    };
+    if let Some(locator) = locator {
+        out.push_str(&format!(", {}", locator.render()));
+    }
+    out
+}
+
+/// Several works cited at one place, in one pair of parentheses as APA 7 sets them (§8.12):
+/// in the order the reference list puts them, separated by semicolons —
+/// `(Kallio & Virtanen, 2019; Nieminen, 2021a)`.
+///
+/// Works by the same authors name them once and give the years in order:
+/// `(Nieminen, n.d., 2019, 2021)`. Only where neither carries a page, since `2019, p. 4, 2021`
+/// would read as one work's locator. The same work cited twice in the same way appears once.
+///
+/// One work alone is exactly its own parenthetical citation.
+pub fn parenthetical_together(cited: &[Cite], disambiguation: &Disambiguation) -> String {
+    let mut ordered: Vec<Cite> = Vec::new();
+    for &cite in cited {
+        if !ordered
+            .iter()
+            .any(|c| c.source.id == cite.source.id && c.locator == cite.locator)
+        {
+            ordered.push(cite);
+        }
+    }
+    // Stable, so one work cited at two pages keeps the order it was cited in. Ordered by the
+    // full name even where the short form is printed: the order is the reference list's.
+    ordered.sort_by(|a, b| reference_order(a.source, b.source));
+
+    // (the names, what is written, whether a year can still be added to it)
+    let mut parts: Vec<(String, String, bool)> = Vec::new();
+    for Cite {
+        source,
+        locator,
+        introduced,
+    } in ordered
+    {
+        let entry = disambiguation.get(source.id);
+        let names = author_label(source, &entry, Form::Parenthetical, introduced);
+        let year = year_label(source, &entry);
+        match parts.last_mut() {
+            Some((last, written, open)) if *open && locator.is_none() && *last == names => {
+                written.push_str(&format!(", {year}"));
+            }
+            _ => {
+                let written = parenthetical_part(&names, &year, locator);
+                parts.push((names, written, locator.is_none()));
+            }
+        }
+    }
+
+    let inside: Vec<&str> = parts
+        .iter()
+        .map(|(_, written, _)| written.as_str())
+        .collect();
+    format!("({})", inside.join("; "))
 }
 
 /// The year, plus any disambiguating letter. `n.d.` when there is no date.
@@ -108,7 +196,7 @@ fn with_letter(mut year: String, date: Date, suffix: Option<char>) -> String {
 }
 
 /// The names, per the author-count rules — and this is where APA 7 differs from APA 6.
-fn author_label(source: &Source, entry: &Entry, form: Form) -> String {
+fn author_label(source: &Source, entry: &Entry, form: Form, introduced: bool) -> String {
     let authors = source.authors();
 
     if authors.is_empty() {
@@ -125,7 +213,7 @@ fn author_label(source: &Source, entry: &Entry, form: Form) -> String {
     }
 
     if authors.len() == 1 && authors[0].is_group() {
-        return group_label(authors[0], form);
+        return group_label(authors[0], form, introduced);
     }
 
     let name = |c: &Contributor| -> String {
@@ -168,23 +256,26 @@ fn author_label(source: &Source, entry: &Entry, form: Form) -> String {
     }
 }
 
-fn group_label(group: &Contributor, form: Form) -> String {
+fn group_label(group: &Contributor, form: Form, introduced: bool) -> String {
     let full = group.sort_key();
     match (&group.abbreviation, form) {
-        // First use spells the group out and introduces the short form. Whether a use is the
-        // *first* is a property of a document, so the caller decides by supplying the
-        // abbreviation only where it should be introduced.
+        // After the first citation, the short form alone.
+        (Some(short), _) if introduced => short.clone(),
+        // The first spells the group out and introduces the short form.
         (Some(short), Form::Parenthetical) => format!("{full} [{short}]"),
-        // In a sentence the short form shares the parentheses with the year; `in_text` puts
-        // it there.
+        // In a sentence the short form shares the parentheses with the year; `in_text_cite`
+        // puts it there.
         (Some(_), Form::Narrative) | (None, _) => full,
     }
 }
 
-/// The short form a group author introduces, if it is the only author and has one.
-fn introduced(source: &Source) -> Option<&str> {
+/// A group author's full name and the short form it introduces, when it is the only author
+/// and has one. Short forms are introduced once per document, per group — not per work.
+pub fn short_form(source: &Source) -> Option<(&str, &str)> {
     match source.authors()[..] {
-        [only] if only.is_group() => only.abbreviation.as_deref(),
+        [only] if only.is_group() => {
+            Some((only.literal.as_deref()?, only.abbreviation.as_deref()?))
+        }
         _ => None,
     }
 }

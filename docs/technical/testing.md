@@ -54,6 +54,7 @@ say so — a guarantee can disappear without a single red build.
 | `tests/rebuild_equivalence.rs` | The property above |
 | `tests/citations.rs` | APA 7 rule by rule, and the disambiguation rules that need more than one source to see |
 | `tests/apa.rs`, `tests/apa/` | APA 7 example by example: one file per kind of source, each case a source as stored and the three forms APA prints for it |
+| `tests/export.rs`, `tests/export/` | Exports through a real library, compared exactly with files a person has read |
 | `tests/library.rs` | A library's name, and the folder that follows it |
 | `tests/names.rs` | Filenames that follow titles |
 | `tests/split.rs` | Splitting a document without cutting anything in half |
@@ -84,6 +85,10 @@ The ones that have already caught real bugs:
 Put it beside the code if it is pure logic, in `tests/` if it spans layers or touches a real
 directory. Use `tempfile::tempdir()` — never a fixed path, and never anything outside a temporary
 directory.
+
+An expected export in `tests/export/` is rewritten by running the suite with `PLC_BLESS=1`. Read
+what it wrote before committing it: blessing a wrong file makes it the standard every later
+export is held to.
 
 An APA example from the manual is not a test to write but a case to add: a few lines in the
 right `tests/apa/<kind>.toml`, holding the source exactly as a library stores it and what APA

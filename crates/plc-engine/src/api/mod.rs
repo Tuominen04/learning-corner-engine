@@ -15,8 +15,9 @@ use std::path::{Path, PathBuf};
 use crate::atomic;
 use crate::citation::disambiguate::Disambiguation;
 use crate::citation::format::{self, Form, Locator};
-use crate::citation::{Field, Source};
+use crate::citation::{CitationRef, Field, Source};
 use crate::error::{Error, IoContext, Result};
+use crate::export;
 use crate::id::Id;
 use crate::index::{Entry, Hit, Index, Kind, RebuildSummary};
 use crate::library::{Library, Manifest};
@@ -1017,6 +1018,41 @@ impl Engine {
         Ok(format::reference_list(&used, &disambiguation))
     }
 
+    // ---- export ----------------------------------------------------------------
+
+    /// A document as a file somebody else can read, in `format`.
+    ///
+    /// Every citation is written out against the whole library, exactly as the editor shows
+    /// it, and the reference list follows the writing. Links read as the titles of the
+    /// documents they lead to, and pictures go inside the file wherever the format can carry
+    /// them. Nothing is written anywhere: where the bytes go is the caller's choice.
+    pub fn export_document(&self, id: Id, format: export::Format) -> Result<Vec<u8>> {
+        let view = self.document_read(id)?;
+        let sources = self.source_list()?;
+        let disambiguation = Disambiguation::compute(&sources);
+
+        let cited = crate::citation::reference::parse_all(&view.body);
+        let used: Vec<Source> = sources
+            .iter()
+            .filter(|s| cited.iter().any(|c| c.source == s.id))
+            .cloned()
+            .collect();
+        let references = format::reference_list(&used, &disambiguation);
+
+        let resolver = Resolver {
+            engine: self,
+            document: id,
+            sources: &sources,
+            disambiguation: &disambiguation,
+        };
+        let model = export::build(&view.title, &view.body, &references, &resolver);
+
+        Ok(match format {
+            export::Format::Text => export::text::write(&model).into_bytes(),
+            export::Format::Html => export::html::write(&model).into_bytes(),
+        })
+    }
+
     // ---- later milestones ------------------------------------------------------
 
     pub fn work_create(&mut self) -> Result<()> {
@@ -1058,6 +1094,71 @@ impl Engine {
             modified: found.entity.meta.modified,
             revision: found.revision,
         })
+    }
+}
+
+/// What an exported document's citations, links and pictures lead to, answered from the
+/// library.
+struct Resolver<'a> {
+    engine: &'a Engine,
+    document: Id,
+    sources: &'a [Source],
+    disambiguation: &'a Disambiguation,
+}
+
+impl Resolver<'_> {
+    fn source(&self, id: Id) -> Option<&Source> {
+        self.sources.iter().find(|s| s.id == id)
+    }
+}
+
+impl export::Resolve for Resolver<'_> {
+    fn known(&self, source: Id) -> bool {
+        self.source(source).is_some()
+    }
+
+    fn introduces(&self, source: Id) -> Option<String> {
+        let (group, _) = format::short_form(self.source(source)?)?;
+        Some(group.to_string())
+    }
+
+    fn parenthetical(&self, together: &[(CitationRef, bool)]) -> String {
+        let cited: Vec<format::Cite> = together
+            .iter()
+            .filter_map(|(c, introduced)| {
+                Some(format::Cite {
+                    source: self.source(c.source)?,
+                    locator: c.locator.as_ref(),
+                    introduced: *introduced,
+                })
+            })
+            .collect();
+        format::parenthetical_together(&cited, self.disambiguation)
+    }
+
+    fn narrative(&self, citation: &CitationRef, introduced: bool) -> Option<String> {
+        let cite = format::Cite {
+            source: self.source(citation.source)?,
+            locator: citation.locator.as_ref(),
+            introduced,
+        };
+        Some(format::in_text_cite(
+            cite,
+            self.disambiguation,
+            Form::Narrative,
+        ))
+    }
+
+    fn link(&self, document: Id) -> Option<String> {
+        self.engine
+            .document_read(document)
+            .ok()
+            .map(|view| view.title)
+    }
+
+    fn picture(&self, name: &str) -> Option<Vec<u8>> {
+        let path = self.engine.document_image(self.document, name).ok()??;
+        fs::read(path).ok()
     }
 }
 
