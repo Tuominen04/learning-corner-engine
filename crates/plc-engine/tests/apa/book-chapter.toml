@@ -63,3 +63,25 @@ contributors = [
   { role = "author", family = "Kallio", given = "Kari" },
   { role = "editor", family = "Petrov", given = "Aleksei" },
 ]
+
+[[case]]
+name = "the book's edition shares the parentheses with the chapter's pages"
+parenthetical = "(Dillard, 2020)"
+narrative = "Dillard (2020)"
+reference = "Dillard, J. P. (2020). Currents in the study of persuasion. In M. B. Oliver, A. A. Raney, & J. Bryant (Eds.), *Media effects: Advances in theory and research* (4th ed., pp. 115–129). Routledge."
+
+[case.source]
+id = "01JA00000000000000000000C4"
+type = "book-chapter"
+title = "Currents in the study of persuasion"
+date = { year = 2020 }
+container = "Media effects: Advances in theory and research"
+publisher = "Routledge"
+edition = "4"
+pages = "115-129"
+contributors = [
+  { role = "author", family = "Dillard", given = "James Price" },
+  { role = "editor", family = "Oliver", given = "Mary Beth" },
+  { role = "editor", family = "Raney", given = "Arthur A." },
+  { role = "editor", family = "Bryant", given = "Jennings" },
+]

@@ -314,8 +314,17 @@ fn rest_part(source: &Source, authors: &[&Contributor]) -> String {
             if let Some(book) = present(&source.container) {
                 in_part.push_str(&format!("*{book}*"));
             }
+            // The book's edition and the chapter's pages share one pair of parentheses:
+            // (2nd ed., pp. 345–359).
+            let mut inside = Vec::new();
+            if let Some(edition) = present(&source.edition) {
+                inside.push(edition_label(edition));
+            }
             if let Some(pages) = present(&source.pages) {
-                in_part.push_str(&format!(" (pp. {})", en_dash(pages)));
+                inside.push(format!("pp. {}", en_dash(pages)));
+            }
+            if !inside.is_empty() {
+                in_part.push_str(&format!(" ({})", inside.join(", ")));
             }
             if in_part != "In " {
                 out.push_str(&sentence(in_part.trim_end_matches(", ")));
