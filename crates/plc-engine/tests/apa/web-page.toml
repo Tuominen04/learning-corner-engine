@@ -1,0 +1,62 @@
+# Web pages. Examples from the APA manual (7th ed., §10.16) and the rules in
+# docs/technical/citation-model.md. A web page's title is in italics: it stands alone.
+
+[[case]]
+name = "a dated page on a news site"
+parenthetical = "(Bologna, 2019)"
+narrative = "Bologna (2019)"
+reference = "Bologna, C. (2019, October 31). *Why some people with anxiety love watching horror movies*. HuffPost. https://www.huffpost.com/entry/anxiety-love-watching-horror-movies_l_5d277587e4b02a5a5d57b59e"
+
+[case.source]
+id = "01JA00000000000000000000D1"
+type = "web-page"
+title = "Why some people with anxiety love watching horror movies"
+date = { full = [2019, 10, 31] }
+site = "HuffPost"
+url = "https://www.huffpost.com/entry/anxiety-love-watching-horror-movies_l_5d277587e4b02a5a5d57b59e"
+contributors = [{ role = "author", family = "Bologna", given = "Caroline" }]
+
+[[case]]
+name = "a group author that is also the site: the site is left out"
+parenthetical = "(World Health Organization, 2018)"
+narrative = "World Health Organization (2018)"
+reference = "World Health Organization. (2018, May 24). *The top 10 causes of death*. https://www.who.int/news-room/fact-sheets/detail/the-top-10-causes-of-death"
+
+[case.source]
+id = "01JA00000000000000000000D2"
+type = "web-page"
+title = "The top 10 causes of death"
+date = { full = [2018, 5, 24] }
+site = "World Health Organization"
+url = "https://www.who.int/news-room/fact-sheets/detail/the-top-10-causes-of-death"
+contributors = [{ role = "author", literal = "World Health Organization" }]
+
+[[case]]
+name = "no author and no date, on a page designed to change: the title first, then a retrieval date"
+parenthetical = "(*Protein requirements*, n.d.)"
+narrative = "*Protein requirements* (n.d.)"
+reference = "*Protein requirements*. (n.d.). Terveyskirjasto. Retrieved January 12, 2026, from https://www.terveyskirjasto.fi/protein"
+
+[case.source]
+id = "01JA00000000000000000000D3"
+type = "web-page"
+title = "Protein requirements"
+date = "no-date"
+site = "Terveyskirjasto"
+url = "https://www.terveyskirjasto.fi/protein"
+retrieved = { full = [2026, 1, 12] }
+
+[[case]]
+name = "a title ending in a question mark, in italics, with no full stop after it"
+parenthetical = "(Kalnins, 2022)"
+narrative = "Kalnins (2022)"
+reference = "Kalnins, A. (2022, March 1). *Is protein bad for your kidneys?* Healthline. https://www.healthline.com/nutrition/protein-kidneys"
+
+[case.source]
+id = "01JA00000000000000000000D4"
+type = "web-page"
+title = "Is protein bad for your kidneys?"
+date = { full = [2022, 3, 1] }
+site = "Healthline"
+url = "https://www.healthline.com/nutrition/protein-kidneys"
+contributors = [{ role = "author", family = "Kalnins", given = "Anna" }]

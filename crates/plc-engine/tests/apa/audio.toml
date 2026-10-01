@@ -1,0 +1,38 @@
+# Audio: podcast episodes, the audio a learner cites most. Examples from the APA manual
+# (7th ed., §10.13) and the rules in docs/technical/citation-model.md. The host stands in the
+# author's place; the episode's title is not in italics, the podcast's is.
+
+[[case]]
+name = "an episode, its host, its number and its podcast"
+parenthetical = "(Glass, 2011)"
+narrative = "Glass (2011)"
+reference = "Glass, I. (Host). (2011, August 12). Amusement park (No. 443) [Audio podcast episode]. In *This American Life*. WBEZ Chicago. https://www.thisamericanlife.org/443/amusement-park"
+
+[case.source]
+id = "01JA00000000000000000000F1"
+type = "audio"
+title = "Amusement park"
+date = { full = [2011, 8, 12] }
+container = "This American Life"
+publisher = "WBEZ Chicago"
+number = "443"
+url = "https://www.thisamericanlife.org/443/amusement-park"
+contributors = [{ role = "host", family = "Glass", given = "Ira" }]
+
+[[case]]
+name = "two hosts"
+parenthetical = "(Mailhot & Sanchez, 2020)"
+narrative = "Mailhot and Sanchez (2020)"
+reference = "Mailhot, J., & Sanchez, B. (Hosts). (2020, May 4). Protein, explained [Audio podcast episode]. In *Food for Thought*. https://example.org/podcast/protein"
+
+[case.source]
+id = "01JA00000000000000000000F2"
+type = "audio"
+title = "Protein, explained"
+date = { full = [2020, 5, 4] }
+container = "Food for Thought"
+url = "https://example.org/podcast/protein"
+contributors = [
+  { role = "host", family = "Mailhot", given = "Jenna" },
+  { role = "host", family = "Sanchez", given = "Ben" },
+]
