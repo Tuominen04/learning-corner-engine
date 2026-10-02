@@ -60,3 +60,8 @@ where this crate and those documents disagree, the documents are right and this 
 ## Licence
 
 Dual licensed under [MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE), at your option.
+
+The one font the engine carries, DejaVu Sans, is not ours and keeps its own free licence: the
+Bitstream Vera licence, with the DejaVu changes in the public domain. It is in
+[`crates/plc-engine/fonts/LICENSE`](crates/plc-engine/fonts/LICENSE), and it lets the font
+travel inside every PDF the engine writes.

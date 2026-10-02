@@ -2,7 +2,7 @@
 
 > **Audience:** People changing the engine
 > **Status:** Implemented
-> **Last reviewed:** 2026-09-07
+> **Last reviewed:** 2026-10-02
 
 ## Toolchain
 
@@ -84,8 +84,11 @@ crates/plc-engine/
 │   ├── model/          topics, documents, front matter
 │   ├── store/          the folder tree, scanning, slugs
 │   ├── index/          the SQLite cache
+│   ├── citation/       sources, disambiguation, APA 7
+│   ├── export/         documents as files: one model, a writer per format
 │   └── api/            Engine
-├── tests/              contract, filesystem, rebuild equivalence
+├── fonts/              DejaVu Sans, which every PDF carries, and its licence
+├── tests/              contract, filesystem, rebuild equivalence, APA, exports
 └── examples/           walkthrough
 ```
 

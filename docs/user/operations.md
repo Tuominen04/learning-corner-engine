@@ -2,7 +2,7 @@
 
 > **Audience:** People calling the engine from a client
 > **Status:** In progress — M0 implemented
-> **Last reviewed:** 2026-10-01
+> **Last reviewed:** 2026-10-02
 
 Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
 milestones already exist and return `Unimplemented`, so a client can be written against the whole
@@ -179,7 +179,7 @@ isolation would silently drop the suffixes.
 
 | Call | Does |
 | --- | --- |
-| `export_document(document, format)` | The document as a file's bytes: `Format::Text` or `Format::Html` |
+| `export_document(document, format)` | The document as a file's bytes: `Format::Text`, `Html`, `Docx`, `Odt` or `Pdf` |
 
 Nothing is written anywhere — where the bytes go is the caller's choice. `Format::extension`
 names the extension to save them with.
@@ -188,6 +188,38 @@ The writing reads as it does in the editor: a `# ` line is a heading, a single n
 break, and `*a*` stays two asterisks and a letter, because the editor shows it that way. Links
 read as the titles of the documents they lead to. A web page carries its pictures inside it;
 plain text names them.
+
+Word (`Docx`) and OpenDocument (`Odt`) are for somebody who goes on editing, so they are set in
+the document's own named styles rather than formatting applied by hand: Title, Heading 1 to 6,
+and a Bibliography style carrying APA's half-inch hanging indent. Change a style and everything
+in it follows. Pages are A4 with inch margins, in Times New Roman at twelve points.
+
+A PDF (`Pdf`) is for somebody who only reads, so it is laid out here, line by line and page by
+page, and looks the same on every computer and on paper:
+
+- Pages are A4 with inch margins, numbered at the top right as APA numbers them. The title, the
+  headings and the reference list are set as in the Word file.
+- It is set in DejaVu Sans, which goes inside the file, cut down to the letters the document
+  uses. It covers Finnish and Swedish, the rest of the Latin alphabets, Greek and Cyrillic. A
+  character it has no letter for — Chinese, an emoji — is drawn as an empty box, but copies out
+  of the PDF as itself.
+- There is one typeface and no italic or bold one, so italics are the letters slanted and bold
+  is the letters drawn heavier, as a word processor does for such a font.
+- Text is ragged right, as APA asks. A line breaks at a space. A web address too long for a
+  line breaks where APA allows — after `//` or `&`, or before other punctuation — with no hyphen
+  added.
+- No paragraph leaves one line alone at the foot of a page or the head of the next, and a
+  heading is always on the same page as the start of what follows it.
+- The headings are the PDF's outline, which a PDF reader lists in its sidebar.
+
+In Word, OpenDocument and PDF alike:
+
+- PNG, JPEG and GIF pictures go inside the file, at 96 pixels to the inch and never wider than
+  six inches or taller than eight. A WebP picture, which Word cannot show, and a picture that
+  is not there are written as their description.
+- The reference list's web addresses are links.
+- The same document always makes the same bytes: every part of a package carries one fixed
+  date, and a PDF carries no date at all.
 
 Citations are written as APA 7 sets them, which the editor's separate chips do not need to:
 

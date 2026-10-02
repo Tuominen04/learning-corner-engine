@@ -1,0 +1,26 @@
+--- page 1 ---
+1
+<b>What protein is</b>
+Protein is built from amino acids (Nieminen, 2021a, p. 44). Kallio and Virtanen
+(2019) measured how much of it Finnish adults eat.
+<b>Kinds of protein</b>
+Complete proteins contain all nine essential amino acids (<i>Protein requirements</i>,
+n.d.; World Health Organization [WHO], 2007, para. 3). The requirement is set
+per kilogram of body weight. (WHO, 2007)
+A line of its own, inside the same paragraph.
+<b>Plant protein</b>
+[picture 0.75 × 0.75]
+See Kinds of protein for more, and [missing document] for nothing. WHO (2007)
+counts it per kilogram. An old claim [source missing]. Rated 5* online, which *is*
+not a source. Белок важен (Петров, 2018, pp. 12–14).
+[Picture: A picture nobody kept]
+#Not a heading, as the editor shows it.
+<b>References</b>
+Kallio, K., & Virtanen, V. (2019). Protein intake in Finnish adults. <i>Journal of</i>
+<i>Nutrition</i>, <i>149</i>(4), 600–612. <link>https://doi.org/10.1093/jn/nxz001</link>
+Nieminen, A. M. (2021a). <i>Ravinto ja terveys</i> (2nd ed.). Otava.
+<i>Protein requirements</i>. (n.d.). Terveyskirjasto. Retrieved January 12, 2026, from
+<link>https://www.terveyskirjasto.fi/protein</link>
+World Health Organization. (2007). <i>Protein and amino acid requirements in</i>
+<i>human nutrition</i> (Report No. 935).
+Петров, А. (2018). <i>Белок в питании</i>. Наука.
