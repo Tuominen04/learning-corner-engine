@@ -19,6 +19,11 @@ use crate::id::Id;
 
 /// Write `contents` to `path`, atomically, creating parent directories as needed.
 pub fn write(path: &Path, contents: &str) -> Result<()> {
+    write_bytes(path, contents.as_bytes())
+}
+
+/// [`write`], for contents that are not text: an exported document in a format made of bytes.
+pub fn write_bytes(path: &Path, contents: &[u8]) -> Result<()> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent).ctx(format!("creating {}", parent.display()))?;
 
@@ -29,7 +34,7 @@ pub fn write(path: &Path, contents: &str) -> Result<()> {
     {
         let mut file =
             File::create(&temp).ctx(format!("creating temporary file {}", temp.display()))?;
-        file.write_all(contents.as_bytes())
+        file.write_all(contents)
             .ctx(format!("writing {}", temp.display()))?;
         file.sync_all()
             .ctx(format!("flushing {}", temp.display()))?;
@@ -145,6 +150,15 @@ mod tests {
         let target = dir.path().join("a/b/c/note.md");
         write(&target, "hello").unwrap();
         assert_eq!(fs::read_to_string(&target).unwrap(), "hello");
+    }
+
+    #[test]
+    fn bytes_are_written_exactly_and_replace_wholly() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("export.bin");
+        write_bytes(&target, &[0xff, 0x00, 0xfe, 0x01, 0x02]).unwrap();
+        write_bytes(&target, &[0x00, 0xff]).unwrap();
+        assert_eq!(fs::read(&target).unwrap(), [0x00, 0xff]);
     }
 
     #[test]
