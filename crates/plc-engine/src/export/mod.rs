@@ -14,7 +14,10 @@
 //! nobody wrote. The rules here mirror the interface's `body.ts` line for line, and its tests
 //! are mirrored below.
 
+pub mod docx;
 pub mod html;
+pub mod odt;
+pub mod package;
 pub mod text;
 
 use std::collections::HashSet;
@@ -31,6 +34,10 @@ pub enum Format {
     Text,
     /// One web page with its pictures inside it, needing nothing else to open.
     Html,
+    /// A Word document, for whoever will edit it in Word or anything that opens Word's files.
+    Docx,
+    /// An OpenDocument text, LibreOffice's own format and an open standard.
+    Odt,
 }
 
 impl Format {
@@ -39,6 +46,8 @@ impl Format {
         match self {
             Format::Text => "txt",
             Format::Html => "html",
+            Format::Docx => "docx",
+            Format::Odt => "odt",
         }
     }
 }
@@ -149,6 +158,116 @@ impl ImageKind {
             ImageKind::Webp => "image/webp",
         }
     }
+
+    /// What a copy of the picture is called inside a Word or OpenDocument file.
+    pub fn extension(self) -> &'static str {
+        match self {
+            ImageKind::Png => "png",
+            ImageKind::Jpeg => "jpeg",
+            ImageKind::Gif => "gif",
+            ImageKind::Webp => "webp",
+        }
+    }
+
+    /// Width and height in pixels, read from the picture's own header. `None` for a WebP,
+    /// which a Word file cannot carry anyway, or for a header that does not say.
+    pub fn dimensions(self, bytes: &[u8]) -> Option<(u32, u32)> {
+        let be32 = |at: usize| -> Option<u32> {
+            Some(u32::from_be_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
+        };
+        let be16 = |at: usize| -> Option<u32> {
+            Some(u32::from(u16::from_be_bytes(
+                bytes.get(at..at + 2)?.try_into().ok()?,
+            )))
+        };
+        let le16 = |at: usize| -> Option<u32> {
+            Some(u32::from(u16::from_le_bytes(
+                bytes.get(at..at + 2)?.try_into().ok()?,
+            )))
+        };
+        let found = match self {
+            // The first chunk is IHDR: width, then height, big-endian.
+            ImageKind::Png => (bytes.get(12..16)? == b"IHDR").then_some((be32(16)?, be32(20)?)),
+            // The logical screen: width, then height, little-endian.
+            ImageKind::Gif => Some((le16(6)?, le16(8)?)),
+            ImageKind::Jpeg => {
+                // Walk the segments to the frame header, which holds height then width.
+                let mut at = 2;
+                loop {
+                    if *bytes.get(at)? != 0xff {
+                        return None;
+                    }
+                    let marker = *bytes.get(at + 1)?;
+                    // A marker may be padded with more 0xFF, and a few carry no length.
+                    if marker == 0xff {
+                        at += 1;
+                        continue;
+                    }
+                    if (0xd0..=0xd7).contains(&marker) || marker == 0x01 {
+                        at += 2;
+                        continue;
+                    }
+                    let frame =
+                        (0xc0..=0xcf).contains(&marker) && !matches!(marker, 0xc4 | 0xc8 | 0xcc);
+                    if frame {
+                        break Some((be16(at + 7)?, be16(at + 5)?));
+                    }
+                    at += 2 + usize::try_from(be16(at + 2)?).ok()?;
+                }
+            }
+            ImageKind::Webp => None,
+        };
+        found.filter(|&(w, h)| w > 0 && h > 0)
+    }
+}
+
+/// A picture as an office document carries it: PNG, JPEG or GIF, with a size it can be shown
+/// at. Anything else is written as its description instead.
+pub struct Placed<'a> {
+    pub image: &'a Image,
+    /// Width and height on the page, in inches.
+    pub size: (f64, f64),
+}
+
+impl Picture {
+    /// Where an office document can show this picture, and how big.
+    ///
+    /// At 96 pixels to the inch, the way a screen shows it, and never wider than the six
+    /// inches of text on a page or taller than eight: a photograph off a phone is several
+    /// pages wide at its own size.
+    pub fn placed(&self) -> Option<Placed<'_>> {
+        let image = self.image.as_ref()?;
+        if image.kind == ImageKind::Webp {
+            return None;
+        }
+        let (w, h) = image.kind.dimensions(&image.bytes)?;
+        let (w, h) = (f64::from(w) / 96.0, f64::from(h) / 96.0);
+        let scale = (6.0 / w).min(8.0 / h).min(1.0);
+        Some(Placed {
+            image,
+            size: (w * scale, h * scale),
+        })
+    }
+}
+
+/// Text made safe for XML: the five characters XML gives a meaning escaped, and the control
+/// characters XML 1.0 cannot hold at all dropped — one stray form feed in a body would
+/// otherwise make the whole file one that Word refuses to open.
+pub fn xml_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            '\t' | '\n' | '\r' => out.push(c),
+            c if (c as u32) < 0x20 || c == '\u{fffe}' || c == '\u{ffff}' => {}
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// What a document's citations, links and pictures lead to. Answered by the engine, which
@@ -1136,6 +1255,79 @@ mod tests {
             assert_eq!(base64(input.as_bytes()), expected);
         }
         assert_eq!(base64(&[0xff, 0xfe, 0x00]), "//4A");
+    }
+
+    #[test]
+    fn a_picture_says_how_big_it_is() {
+        // PNG: IHDR, big-endian.
+        let mut png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
+        png.extend_from_slice(&300u32.to_be_bytes());
+        png.extend_from_slice(&150u32.to_be_bytes());
+        assert_eq!(ImageKind::Png.dimensions(&png), Some((300, 150)));
+
+        // GIF: the logical screen, little-endian.
+        let gif = [
+            b"GIF89a".as_slice(),
+            &300u16.to_le_bytes(),
+            &150u16.to_le_bytes(),
+        ]
+        .concat();
+        assert_eq!(ImageKind::Gif.dimensions(&gif), Some((300, 150)));
+
+        // JPEG: past an APP0 segment and a fill byte to the frame header, height first.
+        let jpeg = [
+            &[0xff, 0xd8][..],
+            &[0xff, 0xe0, 0x00, 0x04, 0x4a, 0x46],
+            &[0xff, 0xff, 0xc0, 0x00, 0x11, 0x08],
+            &150u16.to_be_bytes(),
+            &300u16.to_be_bytes(),
+        ]
+        .concat();
+        assert_eq!(ImageKind::Jpeg.dimensions(&jpeg), Some((300, 150)));
+
+        // A header too short to say, or a size of nothing, is no size at all.
+        assert_eq!(ImageKind::Png.dimensions(&png[..20]), None);
+        assert_eq!(ImageKind::Gif.dimensions(b"GIF89a\x00\x00\x01\x00"), None);
+        assert_eq!(ImageKind::Webp.dimensions(b"RIFF\0\0\0\0WEBPVP8 "), None);
+    }
+
+    #[test]
+    fn a_picture_on_a_page_keeps_its_shape_and_fits_the_text() {
+        let png = |w: u32, h: u32| {
+            let mut bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
+            bytes.extend_from_slice(&w.to_be_bytes());
+            bytes.extend_from_slice(&h.to_be_bytes());
+            Picture {
+                alt: String::new(),
+                name: "p.png".into(),
+                image: Some(Image {
+                    kind: ImageKind::Png,
+                    bytes,
+                }),
+            }
+        };
+        // At 96 to the inch, as a screen shows it.
+        assert_eq!(png(300, 150).placed().unwrap().size, (3.125, 1.5625));
+        // Never wider than six inches, never taller than eight.
+        assert_eq!(png(1200, 600).placed().unwrap().size, (6.0, 3.0));
+        assert_eq!(png(96, 1536).placed().unwrap().size, (0.5, 8.0));
+        // A WebP, or a picture that is not there, has no place on an office page.
+        let mut webp = png(10, 10);
+        webp.image.as_mut().unwrap().kind = ImageKind::Webp;
+        assert!(webp.placed().is_none());
+        let mut gone = png(10, 10);
+        gone.image = None;
+        assert!(gone.placed().is_none());
+    }
+
+    #[test]
+    fn text_for_xml_has_its_markup_escaped_and_what_xml_cannot_hold_dropped() {
+        assert_eq!(
+            xml_text("a & b < c > \"d\" 'e'"),
+            "a &amp; b &lt; c &gt; &quot;d&quot; &apos;e&apos;"
+        );
+        assert_eq!(xml_text("form\u{c}feed\u{0}nul\ttab"), "formfeednul\ttab");
+        assert_eq!(xml_text("Белок"), "Белок");
     }
 
     #[test]

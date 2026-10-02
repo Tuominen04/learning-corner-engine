@@ -179,7 +179,7 @@ isolation would silently drop the suffixes.
 
 | Call | Does |
 | --- | --- |
-| `export_document(document, format)` | The document as a file's bytes: `Format::Text` or `Format::Html` |
+| `export_document(document, format)` | The document as a file's bytes: `Format::Text`, `Html`, `Docx` or `Odt` |
 
 Nothing is written anywhere — where the bytes go is the caller's choice. `Format::extension`
 names the extension to save them with.
@@ -188,6 +188,18 @@ The writing reads as it does in the editor: a `# ` line is a heading, a single n
 break, and `*a*` stays two asterisks and a letter, because the editor shows it that way. Links
 read as the titles of the documents they lead to. A web page carries its pictures inside it;
 plain text names them.
+
+Word (`Docx`) and OpenDocument (`Odt`) are for somebody who goes on editing, so they are set in
+the document's own named styles rather than formatting applied by hand: Title, Heading 1 to 6,
+and a Bibliography style carrying APA's half-inch hanging indent. Change a style and everything
+in it follows. Pages are A4 with inch margins, in Times New Roman at twelve points.
+
+- PNG, JPEG and GIF pictures go inside the file, at 96 pixels to the inch and never wider than
+  six inches or taller than eight. A WebP picture, which Word cannot show, and a picture that
+  is not there are written as their description.
+- The reference list's web addresses are links.
+- The same document always makes the same bytes: every part of the package carries one fixed
+  date.
 
 Citations are written as APA 7 sets them, which the editor's separate chips do not need to:
 

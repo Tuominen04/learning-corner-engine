@@ -90,6 +90,11 @@ An expected export in `tests/export/` is rewritten by running the suite with `PL
 what it wrote before committing it: blessing a wrong file makes it the standard every later
 export is held to.
 
+Word and OpenDocument files are zips, so they are unzipped and every XML part parsed rather
+than compared byte for byte. What no test here can do is open them in a word processor, so
+`PLC_EXPORT_TO=<folder> cargo test --test export` writes the example in every format to a
+folder, for opening by hand in Word, LibreOffice and a browser.
+
 An APA example from the manual is not a test to write but a case to add: a few lines in the
 right `tests/apa/<kind>.toml`, holding the source exactly as a library stores it and what APA
 prints for it in parentheses, in a sentence, and in the reference list. Every case runs, and a

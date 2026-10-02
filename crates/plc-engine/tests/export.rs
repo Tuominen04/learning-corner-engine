@@ -6,6 +6,7 @@
 //! what was written before committing it, because blessing a wrong file makes it the standard.
 
 use std::fs;
+use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use plc_engine::api::Keep;
@@ -38,6 +39,10 @@ struct Library {
 }
 
 impl Library {
+    fn bytes(&self, document: Id, format: Format) -> Vec<u8> {
+        self.engine.export_document(document, format).unwrap()
+    }
+
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let mut engine = Engine::create(dir.path().join("learning"), "Learning").unwrap();
@@ -325,4 +330,216 @@ fn files(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
 fn each_format_knows_its_extension() {
     assert_eq!(Format::Text.extension(), "txt");
     assert_eq!(Format::Html.extension(), "html");
+    assert_eq!(Format::Docx.extension(), "docx");
+    assert_eq!(Format::Odt.extension(), "odt");
+}
+
+/// With `PLC_EXPORT_TO=<folder>`, the protein example in every format, for opening by hand in
+/// a word processor and a browser — what no test here can do for you.
+#[test]
+fn every_format_can_be_written_out_for_opening_by_hand() {
+    let Some(folder) = std::env::var_os("PLC_EXPORT_TO") else {
+        return;
+    };
+    let (library, what) = protein();
+    fs::create_dir_all(&folder).unwrap();
+    for format in [Format::Text, Format::Html, Format::Docx, Format::Odt] {
+        let name = format!("protein.{}", format.extension());
+        fs::write(Path::new(&folder).join(name), library.bytes(what, format)).unwrap();
+    }
+}
+
+// ---- Word and OpenDocument: zips of XML ------------------------------------------
+
+/// Every part of a package, by name, in the order it was written.
+fn unzip(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+    (0..zip.len())
+        .map(|i| {
+            let mut part = zip.by_index(i).unwrap();
+            let mut content = Vec::new();
+            part.read_to_end(&mut content).unwrap();
+            (part.name().to_string(), content)
+        })
+        .collect()
+}
+
+fn part<'a>(parts: &'a [(String, Vec<u8>)], name: &str) -> &'a str {
+    let (_, bytes) = parts
+        .iter()
+        .find(|(n, _)| n == name)
+        .unwrap_or_else(|| panic!("no {name} in {:?}", names(parts)));
+    std::str::from_utf8(bytes).unwrap()
+}
+
+fn names(parts: &[(String, Vec<u8>)]) -> Vec<&str> {
+    parts.iter().map(|(n, _)| n.as_str()).collect()
+}
+
+/// Every XML part parses: a file with one malformed part is one an office suite refuses whole.
+fn all_xml_parses(parts: &[(String, Vec<u8>)]) {
+    for (name, bytes) in parts {
+        if name.ends_with(".xml") || name.ends_with(".rels") {
+            let text = std::str::from_utf8(bytes).unwrap();
+            roxmltree::Document::parse(text).unwrap_or_else(|e| panic!("{name}: {e}"));
+        }
+    }
+}
+
+/// The text of every element named `name` in a part, one string per element.
+fn texts(xml: &str, paragraph: &str, text: &str) -> Vec<String> {
+    let doc = roxmltree::Document::parse(xml).unwrap();
+    doc.descendants()
+        .filter(|n| n.tag_name().name() == paragraph)
+        .map(|p| {
+            p.descendants()
+                .filter(|n| n.tag_name().name() == text)
+                .filter_map(|n| n.text())
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+fn a_word_file_holds_the_document_its_styles_and_its_picture() {
+    let (library, what) = protein();
+    let parts = unzip(&library.bytes(what, Format::Docx));
+    assert_eq!(
+        names(&parts),
+        [
+            "[Content_Types].xml",
+            "_rels/.rels",
+            "word/document.xml",
+            "word/styles.xml",
+            "word/_rels/document.xml.rels",
+            "docProps/core.xml",
+            "word/media/image1.png",
+        ]
+    );
+    all_xml_parses(&parts);
+
+    let document = part(&parts, "word/document.xml");
+    let paragraphs = texts(document, "p", "t");
+    assert_eq!(paragraphs[0], "What protein is");
+    assert!(paragraphs.contains(&"Kinds of protein".to_string()));
+    assert!(
+        paragraphs.iter().any(|p| {
+            p.starts_with(
+            "Protein is built from amino acids (Nieminen, 2021a, p. 44). Kallio and Virtanen (2019)"
+        )
+        }),
+        "{paragraphs:#?}"
+    );
+    assert!(paragraphs
+        .iter()
+        .any(|p| p.contains("An old claim [source missing].")));
+    assert!(paragraphs.contains(&"References".to_string()));
+    assert!(paragraphs.contains(&"Петров, А. (2018). Белок в питании. Наука.".to_string()));
+
+    // Styles, never formatting by hand: the headings are Word's, the list hangs.
+    assert!(document.contains("<w:pStyle w:val=\"Title\"/>"));
+    assert!(document.contains("<w:pStyle w:val=\"Heading1\"/>"));
+    assert!(document.contains("<w:pStyle w:val=\"Heading2\"/>"));
+    assert_eq!(
+        document
+            .matches("<w:pStyle w:val=\"Bibliography\"/>")
+            .count(),
+        5
+    );
+    let styles = part(&parts, "word/styles.xml");
+    assert!(styles.contains("<w:name w:val=\"heading 1\"/>"));
+    assert!(styles.contains("<w:ind w:left=\"720\" w:hanging=\"720\"/>"));
+
+    // Italics where APA puts them: the no-author page's title, in the text and in the list.
+    assert!(document
+        .contains("<w:i/><w:iCs/></w:rPr><w:t xml:space=\"preserve\">Protein requirements</w:t>"));
+
+    // The picture travels inside the file, one pixel at 96 to the inch: 9525 EMU square.
+    assert_eq!(part_bytes(&parts, "word/media/image1.png"), PIXEL);
+    assert!(document.contains("<wp:extent cx=\"9525\" cy=\"9525\"/>"));
+    assert!(document.contains("descr=\"Amino acids &amp; their chains\""));
+    let relationships = part(&parts, "word/_rels/document.xml.rels");
+    assert!(relationships.contains("Target=\"media/image1.png\""));
+    // A picture that is not there is its description.
+    assert!(paragraphs.contains(&"[Picture: A picture nobody kept]".to_string()));
+
+    // The list's web addresses are links.
+    assert!(relationships
+        .contains("Target=\"https://doi.org/10.1093/jn/nxz001\" TargetMode=\"External\""));
+    assert!(part(&parts, "docProps/core.xml").contains("<dc:title>What protein is</dc:title>"));
+}
+
+fn part_bytes<'a>(parts: &'a [(String, Vec<u8>)], name: &str) -> &'a [u8] {
+    &parts.iter().find(|(n, _)| n == name).unwrap().1
+}
+
+#[test]
+fn an_opendocument_file_starts_with_its_mimetype_and_holds_everything_else() {
+    let (library, what) = protein();
+    let bytes = library.bytes(what, Format::Odt);
+
+    // The standard's one rule about order: `mimetype` first, uncompressed, so the file is
+    // recognisable from its first bytes.
+    assert_eq!(&bytes[30..38], b"mimetype");
+    assert_eq!(&bytes[38..77], b"application/vnd.oasis.opendocument.text");
+
+    let parts = unzip(&bytes);
+    assert_eq!(
+        names(&parts),
+        [
+            "mimetype",
+            "META-INF/manifest.xml",
+            "content.xml",
+            "styles.xml",
+            "meta.xml",
+            "Pictures/1.png",
+        ]
+    );
+    all_xml_parses(&parts);
+
+    let manifest = part(&parts, "META-INF/manifest.xml");
+    for listed in ["content.xml", "styles.xml", "meta.xml", "Pictures/1.png"] {
+        assert!(
+            manifest.contains(&format!("manifest:full-path=\"{listed}\"")),
+            "{listed}"
+        );
+    }
+
+    let content = part(&parts, "content.xml");
+    assert!(content.contains("<text:p text:style-name=\"Title\">What protein is</text:p>"));
+    assert!(content.contains(
+        "<text:h text:style-name=\"Heading_20_1\" text:outline-level=\"1\">Kinds of protein</text:h>"
+    ));
+    assert!(content.contains("<text:span text:style-name=\"T1\">Protein requirements</text:span>"));
+    assert!(content.contains("An old claim [source missing]."));
+    assert!(
+        content.contains("A line of its own, inside the same paragraph.")
+            && content.contains("<text:line-break/>A line of its own")
+    );
+    assert_eq!(
+        content.matches("text:style-name=\"Bibliography\"").count(),
+        5
+    );
+    assert!(content.contains(
+        "<text:a xlink:type=\"simple\" xlink:href=\"https://doi.org/10.1093/jn/nxz001\">"
+    ));
+    assert!(content.contains("<svg:title>Amino acids &amp; their chains</svg:title>"));
+    assert!(content.contains("svg:width=\"0.010in\" svg:height=\"0.010in\""));
+
+    let styles = part(&parts, "styles.xml");
+    assert!(styles.contains("fo:margin-left=\"0.5in\" fo:text-indent=\"-0.5in\""));
+    assert_eq!(part_bytes(&parts, "Pictures/1.png"), PIXEL);
+    assert!(part(&parts, "meta.xml").contains("<dc:title>What protein is</dc:title>"));
+}
+
+#[test]
+fn an_unchanged_document_exports_the_same_bytes_every_time() {
+    let (library, what) = protein();
+    for format in [Format::Text, Format::Html, Format::Docx, Format::Odt] {
+        assert_eq!(
+            library.bytes(what, format),
+            library.bytes(what, format),
+            "{format:?}"
+        );
+    }
 }
