@@ -322,10 +322,14 @@ impl Reader<'_> {
                         i += used;
                     }
                     self.cited(&together, &mut out);
+                    space_after(pieces.get(i), &mut out);
                 }
                 Piece::Construct(construct) => {
                     self.resolved(construct, &mut out);
                     i += 1;
+                    if matches!(construct, Construct::Citation(_)) {
+                        space_after(pieces.get(i), &mut out);
+                    }
                 }
             }
         }
@@ -383,6 +387,8 @@ impl Reader<'_> {
                 } else {
                     None
                 };
+                // A name in the sentence, so never run into the word before it either.
+                space_before(out);
                 match rendered {
                     Some(text) => out.extend(read_emphasis(&text).into_iter().map(Inline::Text)),
                     None => out.push(Inline::Text(Run::plain(MISSING_SOURCE))),
@@ -422,6 +428,20 @@ fn side_by_side<'p>(pieces: &'p [Piece]) -> Option<(&'p CitationRef, usize)> {
             parenthetical(pieces.get(1)).map(|c| (c, 2))
         }
         first => parenthetical(first).map(|c| (c, 1)),
+    }
+}
+
+/// A space after a citation, when a word or a link would otherwise run straight on from it:
+/// `(Nieminen, 2021)and` is what the text holds when nothing was typed between them. Not before
+/// punctuation, which belongs against it.
+fn space_after(next: Option<&Piece>, out: &mut Vec<Inline>) {
+    let needs = match next {
+        Some(Piece::Text(text)) => text.chars().next().is_some_and(char::is_alphanumeric),
+        Some(Piece::Construct(Construct::Link(_))) => true,
+        _ => false,
+    };
+    if needs {
+        out.push(Inline::Text(Run::plain(" ")));
     }
 }
 
@@ -873,9 +893,10 @@ mod tests {
             read(&format!("[^cite:{SOURCE}!narrative][^cite:{LINKED}] found")),
             "(n) (p) found"
         );
+        // A name, so spaced from the word before it like any other.
         assert_eq!(
             read(&format!("As[^cite:{SOURCE}!narrative] found")),
-            "As(n) found"
+            "As (n) found"
         );
     }
 
@@ -933,6 +954,27 @@ mod tests {
             panic!()
         };
         assert_eq!(content[2], Inline::Text(Run::plain("(p short)")));
+    }
+
+    #[test]
+    fn a_citation_is_not_run_into_the_word_after_it() {
+        assert_eq!(
+            read(&format!("tissue [^cite:{SOURCE}]and more")),
+            "tissue (p) and more"
+        );
+        assert_eq!(
+            read(&format!("[^cite:{SOURCE}!narrative]found")),
+            "(n) found"
+        );
+        assert_eq!(read(&format!("[^cite:{SOURCE}][[{LINKED}]]")), "(p) Linked");
+        assert_eq!(
+            read(&format!("Old[^cite:{GONE}]claim")),
+            "Old [source missing] claim"
+        );
+        // Punctuation stays against it, and a space already there is not doubled.
+        assert_eq!(read(&format!("[^cite:{SOURCE}].")), "(p).");
+        assert_eq!(read(&format!("[^cite:{SOURCE}]’s")), "(p)’s");
+        assert_eq!(read(&format!("[^cite:{SOURCE}] next")), "(p) next");
     }
 
     #[test]

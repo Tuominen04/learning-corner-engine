@@ -193,7 +193,8 @@ Citations are written as APA 7 sets them, which the editor's separate chips do n
 
 - Parenthetical citations side by side become one pair of parentheses, in reference-list
   order: `(Kallio & Virtanen, 2019; Nieminen, 2021a)`.
-- A citation written straight after a word is spaced from it.
+- A citation is never run into the word before it or the word after it, whatever the text
+  holds between them. Punctuation stays against it: `(Nieminen, 2021).`
 - A group's short form is introduced the first time the document cites the group, and used
   alone after that: `(World Health Organization [WHO], 2007)`, then `(WHO, 2007)`.
 - A source that has gone reads `[source missing]`, and a link to a document that has gone
