@@ -1047,19 +1047,18 @@ impl Engine {
         };
         let model = export::build(&view.title, &view.body, &references, &resolver);
 
-        let packed = |written: zip::result::ZipResult<Vec<u8>>| {
-            written.map_err(|e| {
-                Error::library(format!(
-                    "putting the {} file together: {e}",
-                    format.extension()
-                ))
-            })
+        let together = |e: &dyn std::fmt::Display| {
+            Error::library(format!(
+                "putting the {} file together: {e}",
+                format.extension()
+            ))
         };
         Ok(match format {
             export::Format::Text => export::text::write(&model).into_bytes(),
             export::Format::Html => export::html::write(&model).into_bytes(),
-            export::Format::Docx => packed(export::docx::write(&model))?,
-            export::Format::Odt => packed(export::odt::write(&model))?,
+            export::Format::Docx => export::docx::write(&model).map_err(|e| together(&e))?,
+            export::Format::Odt => export::odt::write(&model).map_err(|e| together(&e))?,
+            export::Format::Pdf => export::pdf::write(&model).map_err(|e| together(&e))?,
         })
     }
 

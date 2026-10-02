@@ -2,7 +2,7 @@
 
 > **Audience:** People changing the engine
 > **Status:** In progress — M0 implemented
-> **Last reviewed:** 2026-10-01
+> **Last reviewed:** 2026-10-02
 
 There is no server, no network, and one user. That removes whole categories of testing and
 concentrates the risk in one place: **the library on disk.**
@@ -91,9 +91,13 @@ what it wrote before committing it: blessing a wrong file makes it the standard 
 export is held to.
 
 Word and OpenDocument files are zips, so they are unzipped and every XML part parsed rather
-than compared byte for byte. What no test here can do is open them in a word processor, so
+than compared byte for byte. A PDF is read back out of the file with `lopdf`, page by page and
+line by line as a reader draws it, with italics, bold and links marked, and that reading is
+compared exactly with `tests/export/protein.pdf.txt` — so a change to where its lines or pages
+break is in a diff somebody reviews. Its font, picture, links and outline are checked in the
+file's own objects. What no test here can do is open the files in the programs people use, so
 `PLC_EXPORT_TO=<folder> cargo test --test export` writes the example in every format to a
-folder, for opening by hand in Word, LibreOffice and a browser.
+folder, for opening by hand in Word, LibreOffice, a browser and a PDF reader.
 
 An APA example from the manual is not a test to write but a case to add: a few lines in the
 right `tests/apa/<kind>.toml`, holding the source exactly as a library stores it and what APA

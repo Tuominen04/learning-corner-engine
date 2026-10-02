@@ -18,6 +18,7 @@ pub mod docx;
 pub mod html;
 pub mod odt;
 pub mod package;
+pub mod pdf;
 pub mod text;
 
 use std::collections::HashSet;
@@ -38,6 +39,9 @@ pub enum Format {
     Docx,
     /// An OpenDocument text, LibreOffice's own format and an open standard.
     Odt,
+    /// A PDF: the document exactly as it prints, the same on every computer, for whoever only
+    /// needs to read it.
+    Pdf,
 }
 
 impl Format {
@@ -48,6 +52,7 @@ impl Format {
             Format::Html => "html",
             Format::Docx => "docx",
             Format::Odt => "odt",
+            Format::Pdf => "pdf",
         }
     }
 }
@@ -175,11 +180,6 @@ impl ImageKind {
         let be32 = |at: usize| -> Option<u32> {
             Some(u32::from_be_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
         };
-        let be16 = |at: usize| -> Option<u32> {
-            Some(u32::from(u16::from_be_bytes(
-                bytes.get(at..at + 2)?.try_into().ok()?,
-            )))
-        };
         let le16 = |at: usize| -> Option<u32> {
             Some(u32::from(u16::from_le_bytes(
                 bytes.get(at..at + 2)?.try_into().ok()?,
@@ -190,34 +190,67 @@ impl ImageKind {
             ImageKind::Png => (bytes.get(12..16)? == b"IHDR").then_some((be32(16)?, be32(20)?)),
             // The logical screen: width, then height, little-endian.
             ImageKind::Gif => Some((le16(6)?, le16(8)?)),
-            ImageKind::Jpeg => {
-                // Walk the segments to the frame header, which holds height then width.
-                let mut at = 2;
-                loop {
-                    if *bytes.get(at)? != 0xff {
-                        return None;
-                    }
-                    let marker = *bytes.get(at + 1)?;
-                    // A marker may be padded with more 0xFF, and a few carry no length.
-                    if marker == 0xff {
-                        at += 1;
-                        continue;
-                    }
-                    if (0xd0..=0xd7).contains(&marker) || marker == 0x01 {
-                        at += 2;
-                        continue;
-                    }
-                    let frame =
-                        (0xc0..=0xcf).contains(&marker) && !matches!(marker, 0xc4 | 0xc8 | 0xcc);
-                    if frame {
-                        break Some((be16(at + 7)?, be16(at + 5)?));
-                    }
-                    at += 2 + usize::try_from(be16(at + 2)?).ok()?;
-                }
-            }
+            ImageKind::Jpeg => jpeg_frame(bytes).map(|frame| (frame.width, frame.height)),
             ImageKind::Webp => None,
         };
         found.filter(|&(w, h)| w > 0 && h > 0)
+    }
+}
+
+/// What a JPEG's frame header says about it.
+pub(crate) struct JpegFrame {
+    /// The marker the frame starts with, which says how the picture is coded.
+    pub marker: u8,
+    /// Bits to a sample.
+    pub precision: u8,
+    pub width: u32,
+    pub height: u32,
+    /// One for grey, three for colour, four for the inks of CMYK — if the header goes on long
+    /// enough to say.
+    pub components: Option<u8>,
+    /// Whether Adobe's segment came before the frame — which says CMYK is stored inverted.
+    pub adobe: bool,
+}
+
+/// A JPEG's frame header, found by walking the segments before it.
+pub(crate) fn jpeg_frame(bytes: &[u8]) -> Option<JpegFrame> {
+    let be16 = |at: usize| -> Option<u32> {
+        Some(u32::from(u16::from_be_bytes(
+            bytes.get(at..at + 2)?.try_into().ok()?,
+        )))
+    };
+    let mut adobe = false;
+    let mut at = 2;
+    loop {
+        if *bytes.get(at)? != 0xff {
+            return None;
+        }
+        let marker = *bytes.get(at + 1)?;
+        // A marker may be padded with more 0xFF, and a few carry no length.
+        if marker == 0xff {
+            at += 1;
+            continue;
+        }
+        if (0xd0..=0xd7).contains(&marker) || marker == 0x01 {
+            at += 2;
+            continue;
+        }
+        let frame = (0xc0..=0xcf).contains(&marker) && !matches!(marker, 0xc4 | 0xc8 | 0xcc);
+        if frame {
+            // Length, precision, then height before width.
+            return Some(JpegFrame {
+                marker,
+                precision: *bytes.get(at + 4)?,
+                height: be16(at + 5)?,
+                width: be16(at + 7)?,
+                components: bytes.get(at + 9).copied(),
+                adobe,
+            });
+        }
+        if marker == 0xee && bytes.get(at + 4..at + 9) == Some(b"Adobe".as_slice()) {
+            adobe = true;
+        }
+        at += 2 + usize::try_from(be16(at + 2)?).ok()?;
     }
 }
 
