@@ -1,0 +1,12 @@
+id = "01M3YSDPA7XMB6CCMH42E7VM4B"
+type = "book"
+title = "Ravinto ja terveys"
+publisher = "Otava"
+
+[date]
+year = 2021
+
+[[contributors]]
+role = "author"
+family = "Nieminen"
+given = "Anna Maria"

@@ -1,0 +1,14 @@
+id = "01M3YSDPD5DZR2ETXVTQ6XYN2W"
+type = "audio"
+title = "Protein myths"
+container = "Ruokaradio"
+number = "42"
+url = "https://ruokaradio.fi/42"
+
+[date]
+year = 2022
+
+[[contributors]]
+role = "host"
+family = "Korhonen"
+given = "Sari"

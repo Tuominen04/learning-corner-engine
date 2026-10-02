@@ -1,0 +1,24 @@
+id = "01M3YSDPCK3YBNC4BTDKSPXH5H"
+type = "journal-article"
+title = "Protein intake in Finnish adults"
+container = "Journal of Nutrition"
+volume = "149"
+issue = "4"
+pages = "600-612"
+doi = "10.1093/jn/nxz001"
+
+[date]
+year = 2019
+
+[[contributors]]
+role = "author"
+family = "Kallio"
+given = "Kari"
+
+[[contributors]]
+role = "author"
+family = "Virtanen"
+given = "Vilja"
+
+[appraisal]
+trust = "medium"

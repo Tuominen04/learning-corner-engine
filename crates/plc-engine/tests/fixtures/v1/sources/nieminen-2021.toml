@@ -1,0 +1,18 @@
+id = "01M3YSDPC79WYSW6CF1K75DVG1"
+type = "book"
+title = "Ravinto ja terveys"
+publisher = "Otava"
+edition = "2"
+file = "nieminen-2021.pdf"
+
+[date]
+year = 2021
+
+[[contributors]]
+role = "author"
+family = "Nieminen"
+given = "Anna Maria"
+
+[appraisal]
+trust = "high"
+note = "The standard Finnish textbook; peer reviewed."

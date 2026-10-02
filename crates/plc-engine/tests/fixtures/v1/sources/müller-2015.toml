@@ -1,0 +1,18 @@
+id = "01M3YSDPDHZE278G3KCVS3VDRE"
+type = "book"
+title = "Ravitsemuksen perusteet"
+publisher = "WSOY"
+edition = "4"
+
+[date]
+year = 2015
+
+[[contributors]]
+role = "author"
+family = "Müller"
+given = "Hans"
+
+[[contributors]]
+role = "translator"
+family = "Virtanen"
+given = "Liisa"
