@@ -243,6 +243,11 @@ The reference list follows the writing, disambiguated against the whole library.
 A person's words are quoted before they reach the index, so `protein (2021)` is a search rather
 than a syntax error. Diacritics are folded: `aakkoset` finds `Ääkköset`.
 
+A document is found by its title and its writing. A source is found by its title, by everyone
+who made it — whole names, and the short name a group goes by, so `WHO` finds the World Health
+Organization's report — and by where it appeared: the journal, book or podcast, the publisher,
+the site.
+
 ## Later milestones
 
 These exist and return `Unimplemented`:

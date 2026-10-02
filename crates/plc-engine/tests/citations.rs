@@ -852,6 +852,58 @@ fn a_source_is_findable_by_its_author() {
 }
 
 #[test]
+fn a_source_is_findable_by_where_it_appeared_and_who_put_it_out() {
+    // What someone remembers of a source saved months ago is as often the journal, the
+    // organisation or the site as its title: "the WHO report", "the one in the Journal of
+    // Nutrition".
+    let (_dir, mut engine) = library();
+    engine
+        .source_create(article(
+            "Protein intake in Finnish adults",
+            2019,
+            vec![author("Kallio", "Kari")],
+        ))
+        .unwrap();
+    let mut report = Source::new(
+        SourceType::Report,
+        "Protein and amino acid requirements in human nutrition",
+        Date::Year(2007),
+    );
+    report.contributors = vec![
+        Contributor::group(Role::Author, "World Health Organization").with_abbreviation("WHO"),
+    ];
+    report.publisher = Some("World Health Organization".into());
+    engine.source_create(report).unwrap();
+    let mut book = Source::new(SourceType::Book, "Ravinto ja terveys", Date::Year(2021));
+    book.contributors = vec![author("Nieminen", "Anna Maria")];
+    book.publisher = Some("Otava".into());
+    engine.source_create(book).unwrap();
+    let mut page = Source::new(SourceType::WebPage, "Protein requirements", Date::NoDate);
+    page.site = Some("Terveyskirjasto".into());
+    engine.source_create(page).unwrap();
+
+    for (query, found) in [
+        ("Journal of Nutrition", "Protein intake in Finnish adults"),
+        (
+            "WHO",
+            "Protein and amino acid requirements in human nutrition",
+        ),
+        ("Otava", "Ravinto ja terveys"),
+        ("Terveyskirjasto", "Protein requirements"),
+        // A whole name, not only the surname a reference list prints.
+        ("Anna Maria", "Ravinto ja terveys"),
+    ] {
+        let hits: Vec<String> = engine
+            .search(query)
+            .unwrap()
+            .into_iter()
+            .map(|hit| hit.title)
+            .collect();
+        assert_eq!(hits, [found], "{query}");
+    }
+}
+
+#[test]
 fn one_author_precedes_the_same_author_with_co_authors() {
     // APA 7 §9.47. Sorting on the first author alone leaves these in title order, which puts
     // the book first and is wrong.
