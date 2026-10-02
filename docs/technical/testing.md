@@ -91,6 +91,15 @@ An expected export in `tests/export/` is rewritten by running the suite with `PL
 what it wrote before committing it: blessing a wrong file makes it the standard every later
 export is held to.
 
+Word and OpenDocument files are zips, so they are unzipped and every XML part parsed rather
+than compared byte for byte. A PDF is read back out of the file with `lopdf`, page by page and
+line by line as a reader draws it, with italics, bold and links marked, and that reading is
+compared exactly with `tests/export/protein.pdf.txt` — so a change to where its lines or pages
+break is in a diff somebody reviews. Its font, picture, links and outline are checked in the
+file's own objects. What no test here can do is open the files in the programs people use, so
+`PLC_EXPORT_TO=<folder> cargo test --test export` writes the example in every format to a
+folder, for opening by hand in Word, LibreOffice, a browser and a PDF reader.
+
 The libraries in `tests/fixtures/` are folders, checked in, opened as a person's library is —
 always from a copy, because opening writes the index. `damaged` holds the mistakes people make
 by hand and by file manager, and must open with every broken file named and none rewritten.
