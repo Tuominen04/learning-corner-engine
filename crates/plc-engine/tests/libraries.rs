@@ -398,12 +398,14 @@ fn reading(engine: &Engine) -> String {
         "Nieminen",
         "Organization",
     ] {
-        let hits: Vec<String> = engine
+        let mut hits: Vec<String> = engine
             .search(query)
             .unwrap()
             .into_iter()
             .map(|hit| format!("{:?} {:?}", hit.kind, hit.title))
             .collect();
+        // What is found is the reading's; the order is the ranking's, free to change with it.
+        hits.sort();
         writeln!(out, "search {query:?}: {}", hits.join(", ")).unwrap();
     }
     out

@@ -244,8 +244,8 @@ source 01M3YSDPDX3CSFCNV1M2672QPC
   | family = "Петров"
   | given = "Алексей"
 
-search "amino": Source "Protein and amino acid requirements in human nutrition", Document "What protein is"
+search "amino": Document "What protein is", Source "Protein and amino acid requirements in human nutrition"
 search "auringonvalosta": Document "D-vitamiinin tarve"
-search "белок": Source "Белок в питании", Document "Белок в питании"
-search "Nieminen": Source "Vitamiinit", Source "Ravinto ja terveys"
+search "белок": Document "Белок в питании", Source "Белок в питании"
+search "Nieminen": Source "Ravinto ja terveys", Source "Vitamiinit"
 search "Organization": Source "Protein and amino acid requirements in human nutrition"
