@@ -1,0 +1,80 @@
+# Journal articles. Examples from the APA manual (7th ed., §10.1) and the rules in
+# docs/technical/citation-model.md. Each case is a source exactly as a library stores it,
+# and what APA prints for it.
+
+[[case]]
+name = "five authors, an issue, pages and a DOI"
+parenthetical = "(Grady et al., 2019)"
+narrative = "Grady et al. (2019)"
+reference = "Grady, J. S., Her, M., Moreno, G., Perez, C., & Yelinek, J. (2019). Emotions in storybooks: A comparison of storybooks that represent ethnic and racial groups in the United States. *Psychology of Popular Media Culture*, *8*(3), 207–217. https://doi.org/10.1037/ppm0000185"
+
+[case.source]
+id = "01JA00000000000000000000A1"
+type = "journal-article"
+title = "Emotions in storybooks: A comparison of storybooks that represent ethnic and racial groups in the United States"
+date = { year = 2019 }
+container = "Psychology of Popular Media Culture"
+volume = "8"
+issue = "3"
+pages = "207-217"
+doi = "10.1037/ppm0000185"
+contributors = [
+  { role = "author", family = "Grady", given = "Jessica Stoltzfus" },
+  { role = "author", family = "Her", given = "Malina" },
+  { role = "author", family = "Moreno", given = "Geovanni" },
+  { role = "author", family = "Perez", given = "Catherine" },
+  { role = "author", family = "Yelinek", given = "Jillian" },
+]
+
+[[case]]
+name = "two authors: an ampersand in parentheses, the word in a sentence"
+parenthetical = "(Nieminen & Kallio, 2021)"
+narrative = "Nieminen and Kallio (2021)"
+reference = "Nieminen, A. M., & Kallio, K. (2021). Protein intake in Finnish adults. *Journal of Nutrition*, *151*(4), 1001–1010. https://doi.org/10.1093/jn/nxaa400"
+
+[case.source]
+id = "01JA00000000000000000000A2"
+type = "journal-article"
+title = "Protein intake in Finnish adults"
+date = { year = 2021 }
+container = "Journal of Nutrition"
+volume = "151"
+issue = "4"
+pages = "1001-1010"
+doi = "https://doi.org/10.1093/jn/nxaa400"
+contributors = [
+  { role = "author", family = "Nieminen", given = "Anna Maria" },
+  { role = "author", family = "Kallio", given = "Kari" },
+]
+
+[[case]]
+name = "a title ending in a question mark takes no full stop after it"
+parenthetical = "(Kim, 2020)"
+narrative = "Kim (2020)"
+reference = "Kim, J. (2020). Is dietary protein overrated? *Nutrition Reviews*, *78*, 12–20."
+
+[case.source]
+id = "01JA00000000000000000000A3"
+type = "journal-article"
+title = "Is dietary protein overrated?"
+date = { year = 2020 }
+container = "Nutrition Reviews"
+volume = "78"
+pages = "12-20"
+contributors = [{ role = "author", family = "Kim", given = "Jae" }]
+
+[[case]]
+name = "no author: the title takes the author's place, in quotation marks in the text"
+parenthetical = "(“Protein requirements,” 2021)"
+narrative = "“Protein requirements” (2021)"
+reference = "Protein requirements. (2021). *Journal of Nutrition*, *151*(2), 99–101."
+
+[case.source]
+id = "01JA00000000000000000000A4"
+type = "journal-article"
+title = "Protein requirements"
+date = { year = 2021 }
+container = "Journal of Nutrition"
+volume = "151"
+issue = "2"
+pages = "99-101"

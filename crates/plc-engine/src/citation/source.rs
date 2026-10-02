@@ -156,14 +156,21 @@ impl Contributor {
             .unwrap_or_default()
     }
 
-    /// Initials from the given names: "Anna Maria" becomes "A. M."
+    /// Initials from the given names: "Anna Maria" becomes "A. M.", and a hyphenated name
+    /// keeps its hyphen — "Jean-Paul" is "J.-P.", as APA 7 sets it.
     pub fn initials(&self) -> String {
         self.given
             .as_deref()
             .unwrap_or_default()
             .split_whitespace()
-            .filter_map(|part| part.chars().next())
-            .map(|c| format!("{}.", c.to_uppercase()))
+            .map(|name| {
+                name.split('-')
+                    .filter_map(|part| part.chars().next())
+                    .map(|c| format!("{}.", c.to_uppercase()))
+                    .collect::<Vec<_>>()
+                    .join("-")
+            })
+            .filter(|initials| !initials.is_empty())
             .collect::<Vec<_>>()
             .join(" ")
     }
@@ -236,6 +243,10 @@ pub struct Source {
     pub pages: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edition: Option<String>,
+    /// A report's number, or a podcast episode's: "12", or the whole label as the work gives it
+    /// — "NIH Publication No. 18-2059".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub number: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub doi: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -272,6 +283,7 @@ impl Source {
             issue: None,
             pages: None,
             edition: None,
+            number: None,
             doi: None,
             url: None,
             retrieved: None,
@@ -292,8 +304,14 @@ impl Source {
             .collect()
     }
 
+    /// Who stands in the author's place: the authors — or, for audio that credits nobody as
+    /// author, its hosts, which is where APA puts a podcast's host.
     pub fn authors(&self) -> Vec<&Contributor> {
-        self.contributors_in(Role::Author)
+        let authors = self.contributors_in(Role::Author);
+        if authors.is_empty() && self.source_type == SourceType::Audio {
+            return self.contributors_in(Role::Host);
+        }
+        authors
     }
 
     /// The required fields this source has not got.

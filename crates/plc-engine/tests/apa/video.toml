@@ -1,0 +1,31 @@
+# Videos. Examples from the APA manual (7th ed., §10.12) and the rules in
+# docs/technical/citation-model.md.
+
+[[case]]
+name = "a channel's video, with the platform as the site"
+parenthetical = "(Harvard University, 2019)"
+narrative = "Harvard University (2019)"
+reference = "Harvard University. (2019, August 28). *Soft robotic gripper for jellyfish* [Video]. YouTube. https://www.youtube.com/watch?v=guRoWTYfxMs"
+
+[case.source]
+id = "01JA00000000000000000000E1"
+type = "video"
+title = "Soft robotic gripper for jellyfish"
+date = { full = [2019, 8, 28] }
+site = "YouTube"
+url = "https://www.youtube.com/watch?v=guRoWTYfxMs"
+contributors = [{ role = "author", literal = "Harvard University" }]
+
+[[case]]
+name = "no author: the title and its description take the author's place"
+parenthetical = "(*How protein is digested*, 2021)"
+narrative = "*How protein is digested* (2021)"
+reference = "*How protein is digested* [Video]. (2021, February 3). YouTube. https://www.youtube.com/watch?v=protein01"
+
+[case.source]
+id = "01JA00000000000000000000E2"
+type = "video"
+title = "How protein is digested"
+date = { full = [2021, 2, 3] }
+site = "YouTube"
+url = "https://www.youtube.com/watch?v=protein01"

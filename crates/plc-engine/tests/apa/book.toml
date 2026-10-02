@@ -1,0 +1,84 @@
+# Books. Examples from the APA manual (7th ed., §10.2) and the rules in
+# docs/technical/citation-model.md. Original publication dates are not modelled yet, so the
+# manual's "(Original work published …)" is left out of the entries that have one.
+
+[[case]]
+name = "an edition given as a number, and a DOI"
+parenthetical = "(Jackson, 2019)"
+narrative = "Jackson (2019)"
+reference = "Jackson, L. M. (2019). *The psychology of prejudice: From attitudes to social action* (2nd ed.). American Psychological Association. https://doi.org/10.1037/0000168-000"
+
+[case.source]
+id = "01JA00000000000000000000B1"
+type = "book"
+title = "The psychology of prejudice: From attitudes to social action"
+date = { year = 2019 }
+publisher = "American Psychological Association"
+edition = "2"
+doi = "10.1037/0000168-000"
+contributors = [{ role = "author", family = "Jackson", given = "Lynne M." }]
+
+[[case]]
+name = "a translation: the translator, then the edition"
+parenthetical = "(Piaget & Inhelder, 1969)"
+narrative = "Piaget and Inhelder (1969)"
+reference = "Piaget, J., & Inhelder, B. (1969). *The psychology of the child* (H. Weaver, Trans.; 2nd ed.). Basic Books."
+
+[case.source]
+id = "01JA00000000000000000000B2"
+type = "book"
+title = "The psychology of the child"
+date = { year = 1969 }
+publisher = "Basic Books"
+edition = "2nd ed."
+contributors = [
+  { role = "author", family = "Piaget", given = "Jean" },
+  { role = "author", family = "Inhelder", given = "Bärbel" },
+  { role = "translator", family = "Weaver", given = "Helen" },
+]
+
+[[case]]
+name = "a hyphenated given name keeps its hyphen"
+parenthetical = "(Sartre, 2003)"
+narrative = "Sartre (2003)"
+reference = "Sartre, J.-P. (2003). *Being and nothingness: An essay on phenomenological ontology* (H. E. Barnes, Trans.). Routledge."
+
+[case.source]
+id = "01JA00000000000000000000B3"
+type = "book"
+title = "Being and nothingness: An essay on phenomenological ontology"
+date = { year = 2003 }
+publisher = "Routledge"
+contributors = [
+  { role = "author", family = "Sartre", given = "Jean-Paul" },
+  { role = "translator", family = "Barnes", given = "Hazel E." },
+]
+
+[[case]]
+name = "a group author that is also the publisher: the publisher is left out"
+parenthetical = "(American Psychological Association, 2020)"
+narrative = "American Psychological Association (2020)"
+reference = "American Psychological Association. (2020). *Publication manual of the American Psychological Association* (7th ed.). https://doi.org/10.1037/0000165-000"
+
+[case.source]
+id = "01JA00000000000000000000B4"
+type = "book"
+title = "Publication manual of the American Psychological Association"
+date = { year = 2020 }
+publisher = "American Psychological Association"
+edition = "7"
+doi = "10.1037/0000165-000"
+contributors = [{ role = "author", literal = "American Psychological Association" }]
+
+[[case]]
+name = "no author: the title takes the author's place"
+parenthetical = "(*Kalevala*, 1849)"
+narrative = "*Kalevala* (1849)"
+reference = "*Kalevala*. (1849). Suomalaisen Kirjallisuuden Seura."
+
+[case.source]
+id = "01JA00000000000000000000B5"
+type = "book"
+title = "Kalevala"
+date = { year = 1849 }
+publisher = "Suomalaisen Kirjallisuuden Seura"

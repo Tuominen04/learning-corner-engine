@@ -74,10 +74,27 @@ fn a_group_author_introduces_its_abbreviation_then_uses_it() {
         alone(&s, Form::Parenthetical),
         "(World Health Organization [WHO], 2019)"
     );
+    // In a sentence the short form shares the parentheses with the year, and a page joins
+    // them there.
+    assert_eq!(
+        alone(&s, Form::Narrative),
+        "World Health Organization (WHO, 2019)"
+    );
+    let sources = vec![s.clone()];
+    assert_eq!(
+        in_text(
+            &s,
+            &Disambiguation::compute(&sources),
+            Form::Narrative,
+            Some(&Locator::Page("12".into()))
+        ),
+        "World Health Organization (WHO, 2019, p. 12)"
+    );
 
     let mut later = s.clone();
     later.contributors = vec![Contributor::group(Role::Author, "WHO")];
     assert_eq!(alone(&later, Form::Parenthetical), "(WHO, 2019)");
+    assert_eq!(alone(&later, Form::Narrative), "WHO (2019)");
 }
 
 #[test]
@@ -87,6 +104,12 @@ fn no_author_puts_the_title_in_the_author_position() {
         alone(&s, Form::Parenthetical),
         "(\u{201c}Protein requirements,\u{201d} 2021)"
     );
+    // The comma inside the quote separates the title from the year. In a sentence there is
+    // nothing to separate.
+    assert_eq!(
+        alone(&s, Form::Narrative),
+        "\u{201c}Protein requirements\u{201d} (2021)"
+    );
 }
 
 #[test]
@@ -95,6 +118,15 @@ fn no_date_is_n_d_rather_than_an_empty_space() {
     s.date = Date::NoDate;
     assert_eq!(alone(&s, Form::Parenthetical), "(Nieminen, n.d.)");
     assert_eq!(alone(&s, Form::Narrative), "Nieminen (n.d.)");
+}
+
+#[test]
+fn initials_keep_a_hyphen_and_pass_over_a_stray_one() {
+    let initials = |given: &str| Contributor::person(Role::Author, "Sartre", given).initials();
+    assert_eq!(initials("Anna Maria"), "A. M.");
+    assert_eq!(initials("Jean-Paul"), "J.-P.");
+    // A hyphen typed on its own between two names is not a third name.
+    assert_eq!(initials("Jean - Paul"), "J. P.");
 }
 
 // ---- locators ------------------------------------------------------------------
@@ -144,6 +176,46 @@ fn same_authors_same_year_get_letters_ordered_by_title() {
         in_text(&second, &d, Form::Parenthetical, None),
         "(Nieminen, 2021b)"
     );
+}
+
+#[test]
+fn letters_follow_titles_without_their_article() {
+    // "The amino story" files under A, so it is the 2021a — under T it would be the b.
+    let the = article("The amino story", 2021, vec![author("Nieminen", "Anna")]);
+    let basics = article("Basics of protein", 2021, vec![author("Nieminen", "Anna")]);
+    let sources = vec![basics.clone(), the.clone()];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        in_text(&the, &d, Form::Parenthetical, None),
+        "(Nieminen, 2021a)"
+    );
+    assert_eq!(
+        in_text(&basics, &d, Form::Parenthetical, None),
+        "(Nieminen, 2021b)"
+    );
+    let list = reference_list(&sources, &d);
+    assert!(list[0].contains("(2021a). The amino story."), "{}", list[0]);
+}
+
+#[test]
+fn undated_works_by_one_author_take_their_letter_after_a_hyphen() {
+    // "n.d.a" reads as a longer abbreviation. APA 7 writes n.d.-a.
+    let mut first = article("Amino acids", 2021, vec![author("Nieminen", "Anna")]);
+    first.date = Date::NoDate;
+    let mut second = article("Zinc", 2021, vec![author("Nieminen", "Anna")]);
+    second.date = Date::NoDate;
+    let sources = vec![second.clone(), first.clone()];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        in_text(&first, &d, Form::Parenthetical, None),
+        "(Nieminen, n.d.-a)"
+    );
+    assert_eq!(
+        in_text(&second, &d, Form::Narrative, None),
+        "Nieminen (n.d.-b)"
+    );
+    let list = reference_list(&sources, &d);
+    assert!(list[0].starts_with("Nieminen, A. (n.d.-a)."), "{}", list[0]);
 }
 
 #[test]
@@ -305,9 +377,10 @@ fn a_web_page_entry_carries_a_full_date() {
     s.site = Some("Terveyskirjasto".into());
     s.url = Some("https://example.org/protein".into());
 
+    // The page's title in italics: a web page stands alone, as a book does (APA 7 §10.16).
     assert_eq!(
         entry(&s),
-        "Nieminen, A. (2021, September 6). Protein basics. Terveyskirjasto. \
+        "Nieminen, A. (2021, September 6). *Protein basics*. Terveyskirjasto. \
          https://example.org/protein"
     );
 }
@@ -380,6 +453,18 @@ fn the_list_is_alphabetical_then_by_year_then_by_title() {
 }
 
 #[test]
+fn a_work_with_no_date_comes_before_the_dated_works_of_its_author() {
+    // APA 7 §9.47: n.d. first, then the years in order.
+    let dated = article("Protein", 2019, vec![author("Nieminen", "Anna")]);
+    let mut undated = article("Zinc", 2019, vec![author("Nieminen", "Anna")]);
+    undated.date = Date::NoDate;
+    let sources = vec![dated, undated];
+    let list = reference_list(&sources, &Disambiguation::compute(&sources));
+    assert!(list[0].starts_with("Nieminen, A. (n.d.)."), "{}", list[0]);
+    assert!(list[1].starts_with("Nieminen, A. (2019)."), "{}", list[1]);
+}
+
+#[test]
 fn finnish_and_cyrillic_names_sort_without_falling_back_to_byte_order() {
     let sources = vec![
         article("Zinc", 2021, vec![author("Öhman", "Olli")]),
@@ -389,6 +474,39 @@ fn finnish_and_cyrillic_names_sort_without_falling_back_to_byte_order() {
     let list = reference_list(&sources, &Disambiguation::compute(&sources));
     let starts: Vec<&str> = list.iter().map(|e| e.split(',').next().unwrap()).collect();
     assert_eq!(starts, vec!["Aho", "Öhman", "Никитин"]);
+}
+
+#[test]
+fn a_work_with_no_author_files_under_its_title_without_the_article() {
+    // "The protein book" files under P, ahead of Smith. Filed under T it would follow him.
+    let untitled = article("The protein book", 2021, vec![]);
+    let smith = article("Zinc", 2021, vec![author("Smith", "Sam")]);
+    let sources = vec![smith, untitled];
+    let list = reference_list(&sources, &Disambiguation::compute(&sources));
+    assert!(list[0].starts_with("The protein book."), "{}", list[0]);
+    assert!(list[1].starts_with("Smith"), "{}", list[1]);
+}
+
+#[test]
+fn a_group_author_files_under_its_full_name_and_not_its_short_form() {
+    // Under "WHO" it would come before Wilson. The list spells the group out, and files it
+    // where the spelled-out name falls.
+    let who = {
+        let mut s = article("Protein", 2007, vec![]);
+        s.contributors = vec![
+            Contributor::group(Role::Author, "World Health Organization").with_abbreviation("WHO"),
+        ];
+        s
+    };
+    let wilson = article("Iron", 2021, vec![author("Wilson", "Wendy")]);
+    let sources = vec![who, wilson];
+    let list = reference_list(&sources, &Disambiguation::compute(&sources));
+    assert!(list[0].starts_with("Wilson, W."), "{}", list[0]);
+    assert!(
+        list[1].starts_with("World Health Organization. (2007)."),
+        "{}",
+        list[1]
+    );
 }
 
 // ---- through a real library ----------------------------------------------------
@@ -449,6 +567,18 @@ fn an_incomplete_source_is_saved_and_reported_rather_than_refused() {
         .citation_format(id, Form::Parenthetical, None)
         .unwrap()
         .contains("Nieminen"));
+}
+
+#[test]
+fn an_episode_with_a_host_and_no_author_is_not_missing_its_author() {
+    // APA puts a podcast's host where the author goes, so a host is all an episode needs.
+    let mut episode = Source::new(SourceType::Audio, "Amusement park", Date::Year(2011));
+    episode.container = Some("This American Life".into());
+    episode.contributors = vec![Contributor::person(Role::Host, "Glass", "Ira")];
+    assert_eq!(episode.missing_fields(), vec![]);
+
+    episode.contributors.clear();
+    assert_eq!(episode.missing_fields(), vec![Field::Authors]);
 }
 
 #[test]

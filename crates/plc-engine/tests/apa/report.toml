@@ -1,0 +1,34 @@
+# Reports. Examples from the APA manual (7th ed., §10.4) and the rules in
+# docs/technical/citation-model.md.
+
+[[case]]
+name = "a number written with its own label is printed as the report prints it"
+parenthetical = "(National Cancer Institute, 2019)"
+narrative = "National Cancer Institute (2019)"
+reference = "National Cancer Institute. (2019). *Taking time: Support for people with cancer* (NIH Publication No. 18-2059). U.S. Department of Health and Human Services, National Institutes of Health. https://www.cancer.gov/publications/patient-education/takingtime.pdf"
+
+[case.source]
+id = "01JA00000000000000000000G1"
+type = "report"
+title = "Taking time: Support for people with cancer"
+date = { year = 2019 }
+publisher = "U.S. Department of Health and Human Services, National Institutes of Health"
+number = "NIH Publication No. 18-2059"
+url = "https://www.cancer.gov/publications/patient-education/takingtime.pdf"
+contributors = [{ role = "author", literal = "National Cancer Institute" }]
+
+[[case]]
+name = "a bare number takes the usual label; a publisher that is the author is left out"
+parenthetical = "(World Health Organization [WHO], 2007)"
+narrative = "World Health Organization (WHO, 2007)"
+reference = "World Health Organization. (2007). *Protein and amino acid requirements in human nutrition* (Report No. 935). https://apps.who.int/iris/handle/10665/43411"
+
+[case.source]
+id = "01JA00000000000000000000G2"
+type = "report"
+title = "Protein and amino acid requirements in human nutrition"
+date = { year = 2007 }
+publisher = "World Health Organization"
+number = "935"
+url = "https://apps.who.int/iris/handle/10665/43411"
+contributors = [{ role = "author", literal = "World Health Organization", abbreviation = "WHO" }]

@@ -1,0 +1,87 @@
+# Chapters in edited books. Examples from the APA manual (7th ed., §10.3) and the rules in
+# docs/technical/citation-model.md.
+
+[[case]]
+name = "three editors: commas, and an ampersand before the last"
+parenthetical = "(Aron et al., 2019)"
+narrative = "Aron et al. (2019)"
+reference = "Aron, L., Botella, M., & Lubart, T. (2019). Culinary arts: Talent and their development. In R. F. Subotnik, P. Olszewski-Kubilius, & F. C. Worrell (Eds.), *The psychology of high performance: Developing human potential into domain-specific talent* (pp. 345–359). American Psychological Association. https://doi.org/10.1037/0000120-016"
+
+[case.source]
+id = "01JA00000000000000000000C1"
+type = "book-chapter"
+title = "Culinary arts: Talent and their development"
+date = { year = 2019 }
+container = "The psychology of high performance: Developing human potential into domain-specific talent"
+publisher = "American Psychological Association"
+pages = "345-359"
+doi = "10.1037/0000120-016"
+contributors = [
+  { role = "author", family = "Aron", given = "Laurie" },
+  { role = "author", family = "Botella", given = "Marion" },
+  { role = "author", family = "Lubart", given = "Todd" },
+  { role = "editor", family = "Subotnik", given = "Rena F." },
+  { role = "editor", family = "Olszewski-Kubilius", given = "Paula" },
+  { role = "editor", family = "Worrell", given = "Frank C." },
+]
+
+[[case]]
+name = "two editors: an ampersand and no comma"
+parenthetical = "(Nieminen, 2021)"
+narrative = "Nieminen (2021)"
+reference = "Nieminen, A. M. (2021). Proteiini ja liikunta. In K. Kallio & L. Laine (Eds.), *Ravitsemus ja terveys* (pp. 10–24). Otava."
+
+[case.source]
+id = "01JA00000000000000000000C2"
+type = "book-chapter"
+title = "Proteiini ja liikunta"
+date = { year = 2021 }
+container = "Ravitsemus ja terveys"
+publisher = "Otava"
+pages = "10-24"
+contributors = [
+  { role = "author", family = "Nieminen", given = "Anna Maria" },
+  { role = "editor", family = "Kallio", given = "Kari" },
+  { role = "editor", family = "Laine", given = "Liisa" },
+]
+
+[[case]]
+name = "one editor"
+parenthetical = "(Kallio, 2018)"
+narrative = "Kallio (2018)"
+reference = "Kallio, K. (2018). Белок в питании. In A. Petrov (Ed.), *Основы питания* (pp. 55–70). Nauka."
+
+[case.source]
+id = "01JA00000000000000000000C3"
+type = "book-chapter"
+title = "Белок в питании"
+date = { year = 2018 }
+container = "Основы питания"
+publisher = "Nauka"
+pages = "55-70"
+contributors = [
+  { role = "author", family = "Kallio", given = "Kari" },
+  { role = "editor", family = "Petrov", given = "Aleksei" },
+]
+
+[[case]]
+name = "the book's edition shares the parentheses with the chapter's pages"
+parenthetical = "(Dillard, 2020)"
+narrative = "Dillard (2020)"
+reference = "Dillard, J. P. (2020). Currents in the study of persuasion. In M. B. Oliver, A. A. Raney, & J. Bryant (Eds.), *Media effects: Advances in theory and research* (4th ed., pp. 115–129). Routledge."
+
+[case.source]
+id = "01JA00000000000000000000C4"
+type = "book-chapter"
+title = "Currents in the study of persuasion"
+date = { year = 2020 }
+container = "Media effects: Advances in theory and research"
+publisher = "Routledge"
+edition = "4"
+pages = "115-129"
+contributors = [
+  { role = "author", family = "Dillard", given = "James Price" },
+  { role = "editor", family = "Oliver", given = "Mary Beth" },
+  { role = "editor", family = "Raney", given = "Arthur A." },
+  { role = "editor", family = "Bryant", given = "Jennings" },
+]
