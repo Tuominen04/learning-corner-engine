@@ -2,7 +2,7 @@
 
 > **Audience:** People changing the engine
 > **Status:** In progress — M0 implemented
-> **Last reviewed:** 2026-09-07
+> **Last reviewed:** 2026-10-01
 
 How this crate is put together, and the rules that keep it that way. What it is *required* to do
 is specified in the main repository; this describes the implementation.
@@ -25,6 +25,8 @@ store                   the folder tree: reading, writing, scanning, slugs
         ↓
 index                   SQLite cache derived from a scan, and nothing else
         ↓
+citation, export        APA 7, and documents as files: pure logic over values
+        ↓
 api                     Engine — what a client calls
 ```
 
@@ -38,6 +40,8 @@ api                     Engine — what a client calls
 | `model` | `Topic`, `Document`, and the front-matter parser |
 | `store` | Layout, entity read/write, the scan, revisions, slugs |
 | `index` | Tables, full-text search, incremental update, rebuild |
+| `citation` | Sources, the library-wide disambiguation pass, and the APA 7 formatters |
+| `export` | A document as somebody else reads it: one model read from the body, a writer per format |
 | `api` | `Engine`: the operations, and conversion into what a client sees |
 
 ## Rules

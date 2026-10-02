@@ -6,7 +6,10 @@
 //! cannot be observed from a single citation at all.
 
 use plc_engine::citation::disambiguate::Disambiguation;
-use plc_engine::citation::format::{in_text, reference_entry, reference_list, Form, Locator};
+use plc_engine::citation::format::{
+    in_text, in_text_cite, parenthetical_together, reference_entry, reference_list, Cite, Form,
+    Locator,
+};
 use plc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
 
 fn author(family: &str, given: &str) -> Contributor {
@@ -127,6 +130,136 @@ fn initials_keep_a_hyphen_and_pass_over_a_stray_one() {
     assert_eq!(initials("Jean-Paul"), "J.-P.");
     // A hyphen typed on its own between two names is not a third name.
     assert_eq!(initials("Jean - Paul"), "J. P.");
+}
+
+// ---- several works at one place, and short forms once introduced ----------------
+
+fn cite<'a>(source: &'a Source, locator: Option<&'a Locator>) -> Cite<'a> {
+    Cite {
+        source,
+        locator,
+        introduced: false,
+    }
+}
+
+fn who(year: i32, title: &str) -> Source {
+    let mut s = article(title, year, vec![]);
+    s.contributors = vec![
+        Contributor::group(Role::Author, "World Health Organization").with_abbreviation("WHO"),
+    ];
+    s
+}
+
+#[test]
+fn works_cited_together_share_one_pair_of_parentheses_in_list_order() {
+    // APA 7 §8.12: in the order of the reference list, separated by semicolons.
+    let nieminen = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    let kallio = article(
+        "Iron",
+        2019,
+        vec![author("Kallio", "Kai"), author("Virtanen", "Vi")],
+    );
+    let sources = vec![nieminen.clone(), kallio.clone()];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        parenthetical_together(&[cite(&nieminen, None), cite(&kallio, None)], &d),
+        "(Kallio & Virtanen, 2019; Nieminen, 2021)"
+    );
+}
+
+#[test]
+fn one_authors_works_name_them_once_then_the_years() {
+    let mut undated = article("Zinc", 2000, vec![author("Nieminen", "Anna")]);
+    undated.date = Date::NoDate;
+    let early = article("Iron", 2019, vec![author("Nieminen", "Anna")]);
+    let a = article("Amino acids", 2021, vec![author("Nieminen", "Anna")]);
+    let b = article("Basics", 2021, vec![author("Nieminen", "Anna")]);
+    let sources = vec![b.clone(), a.clone(), early.clone(), undated.clone()];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        parenthetical_together(
+            &[
+                cite(&b, None),
+                cite(&early, None),
+                cite(&undated, None),
+                cite(&a, None)
+            ],
+            &d
+        ),
+        "(Nieminen, n.d., 2019, 2021a, 2021b)"
+    );
+}
+
+#[test]
+fn a_page_keeps_its_work_apart_from_the_authors_others() {
+    // "Nieminen, 2019, p. 4, 2021" would read as one work's locator.
+    let early = article("Iron", 2019, vec![author("Nieminen", "Anna")]);
+    let late = article("Zinc", 2021, vec![author("Nieminen", "Anna")]);
+    let sources = vec![early.clone(), late.clone()];
+    let d = Disambiguation::compute(&sources);
+    let page = Locator::Page("4".into());
+    assert_eq!(
+        parenthetical_together(&[cite(&late, None), cite(&early, Some(&page))], &d),
+        "(Nieminen, 2019, p. 4; Nieminen, 2021)"
+    );
+}
+
+#[test]
+fn the_same_work_cited_twice_in_one_place_appears_once() {
+    let s = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    let sources = vec![s.clone()];
+    let d = Disambiguation::compute(&sources);
+    assert_eq!(
+        parenthetical_together(&[cite(&s, None), cite(&s, None)], &d),
+        "(Nieminen, 2021)"
+    );
+}
+
+#[test]
+fn one_work_alone_is_its_own_parenthetical_citation() {
+    let person = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    let group = who(2019, "Protein intake");
+    let untitled = article("Protein requirements", 2021, vec![]);
+    let sources = vec![person.clone(), group.clone(), untitled.clone()];
+    let d = Disambiguation::compute(&sources);
+    let page = Locator::Page("44-46".into());
+    for source in &sources {
+        for locator in [None, Some(&page)] {
+            assert_eq!(
+                parenthetical_together(&[cite(source, locator)], &d),
+                in_text(source, &d, Form::Parenthetical, locator)
+            );
+        }
+    }
+}
+
+#[test]
+fn a_group_is_cited_by_its_short_form_once_it_is_introduced() {
+    // APA 7 §8.21. Ordered by the full name all the same: Wilson before the World Health
+    // Organization, as the reference list has them.
+    let report = who(2019, "Protein intake");
+    let wilson = article("Iron", 2021, vec![author("Wilson", "Wendy")]);
+    let sources = vec![report.clone(), wilson.clone()];
+    let d = Disambiguation::compute(&sources);
+    let later = Cite {
+        source: &report,
+        locator: None,
+        introduced: true,
+    };
+    assert_eq!(in_text_cite(later, &d, Form::Parenthetical), "(WHO, 2019)");
+    assert_eq!(in_text_cite(later, &d, Form::Narrative), "WHO (2019)");
+    assert_eq!(
+        in_text_cite(cite(&report, None), &d, Form::Narrative),
+        "World Health Organization (WHO, 2019)"
+    );
+    assert_eq!(
+        parenthetical_together(&[later, cite(&wilson, None)], &d),
+        "(Wilson, 2021; WHO, 2019)"
+    );
+    assert_eq!(
+        parenthetical_together(&[cite(&report, None), cite(&wilson, None)], &d),
+        "(Wilson, 2021; World Health Organization [WHO], 2019)"
+    );
 }
 
 // ---- locators ------------------------------------------------------------------

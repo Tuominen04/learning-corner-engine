@@ -2,7 +2,7 @@
 
 > **Audience:** People calling the engine from a client
 > **Status:** In progress — M0 implemented
-> **Last reviewed:** 2026-09-07
+> **Last reviewed:** 2026-10-01
 
 Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
 milestones already exist and return `Unimplemented`, so a client can be written against the whole
@@ -174,6 +174,33 @@ Disambiguation is computed over the **whole library**, never over one document's
 works by the same author in the same year are `2021a` and `2021b` everywhere they appear, which
 is a fact about the library rather than about either citation — so formatting citations in
 isolation would silently drop the suffixes.
+
+## Export
+
+| Call | Does |
+| --- | --- |
+| `export_document(document, format)` | The document as a file's bytes: `Format::Text` or `Format::Html` |
+
+Nothing is written anywhere — where the bytes go is the caller's choice. `Format::extension`
+names the extension to save them with.
+
+The writing reads as it does in the editor: a `# ` line is a heading, a single newline is a line
+break, and `*a*` stays two asterisks and a letter, because the editor shows it that way. Links
+read as the titles of the documents they lead to. A web page carries its pictures inside it;
+plain text names them.
+
+Citations are written as APA 7 sets them, which the editor's separate chips do not need to:
+
+- Parenthetical citations side by side become one pair of parentheses, in reference-list
+  order: `(Kallio & Virtanen, 2019; Nieminen, 2021a)`.
+- A citation is never run into the word before it or the word after it, whatever the text
+  holds between them. Punctuation stays against it: `(Nieminen, 2021).`
+- A group's short form is introduced the first time the document cites the group, and used
+  alone after that: `(World Health Organization [WHO], 2007)`, then `(WHO, 2007)`.
+- A source that has gone reads `[source missing]`, and a link to a document that has gone
+  `[missing document]`, as in the editor.
+
+The reference list follows the writing, disambiguated against the whole library.
 
 ## Search
 

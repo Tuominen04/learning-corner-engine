@@ -13,6 +13,7 @@ pub mod api;
 pub mod atomic;
 pub mod citation;
 pub mod error;
+pub mod export;
 pub mod id;
 pub mod index;
 pub mod library;
