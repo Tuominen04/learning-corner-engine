@@ -1,0 +1,260 @@
+library "Ravitsemus": 4 topics, 5 documents, 0 problems
+
+topic "Protein" 01M40V1RFWFFGMQQ21SQZ1WJ9K
+  document "Ideas" 01M40V1RNE8CPZ26WT9V75Y3FY
+    created 2026-10-03T12:15:32Z, modified 2026-10-03T12:15:32Z
+  document "What protein is" 01M40V1RMQ6BV3ZEZFF3B30A87
+    created 2026-10-03T12:15:31Z, modified 2026-10-03T12:15:31Z
+    | Protein is built from amino acids[^cite:01M40V1RG7R41CM2ET593GFG66@44]. [^cite:01M40V1RK35T3QJDE9EBJ9G32F!narrative] measured how much of it Finnish adults eat.
+    | 
+    | # Kinds of protein
+    | 
+    | Complete proteins contain all nine essential amino acids[^cite:01M40V1RKBAWG1XN9M7T0HJBNP@para:3][^cite:01M40V1RK794PATZ8AEFV6Z7GM]. The requirement is set per kilogram of body weight.[^cite:01M40V1RKBAWG1XN9M7T0HJBNP]
+    | A line of its own, inside the same paragraph.
+    | 
+    | ## Plant protein
+    | 
+    | ![Amino acids & their chains](amino-acids.png)
+    | 
+    | See [[01M40V1RMSYHR1CKXZZGB3VCG0]] for what the body does with it. [^cite:01M40V1RKJBW8WF5BNS2XZWKSR@time:1:04:22] shows it being measured, and [^cite:01M40V1RKPVMZ41D32YDVF839H@time:12:30!narrative] talks it through.
+    | 
+    | Rated 5* online, which *is* not a source. #Not a heading either.
+    linked from "How protein is used"
+    picture "amino-acids.png": 85 bytes
+
+  topic "In the body" 01M40V1RFZSSM1EDNH88QEFSAC
+    document "How protein is used" 01M40V1RMSYHR1CKXZZGB3VCG0
+      created 2026-10-03T12:15:31Z, modified 2026-10-03T12:15:31Z
+      | Used for tissue repair[^cite:01M40V1RKT03K369MMDFJJWMGN@chapter:3], and as fuel when nothing else is left[^cite:01M40V1RKZMJFNV01TDAYWD6PH@12-14]. Training raises the need[^cite:01M40V1RMEMMJJPEMCB2SG11J2@4].
+      | 
+      | Back to [[01M40V1RMQ6BV3ZEZFF3B30A87]].
+      linked from "What protein is"
+
+topic "Vitamiinit ja kivennäisaineet" 01M40V1RG19QV79JFZZ3PXNY34
+  document "D-vitamiinin tarve" 01M40V1RN2P94C6Y6DESQSGHTA
+    created 2026-10-03T12:15:32Z, modified 2026-10-03T12:15:32Z
+    | D-vitamiinia saadaan auringonvalosta ja ravinnosta[^cite:01M40V1RM87V1SJ71WQRVGX2DM]. Pohjoisessa sitä tarvitaan talvella lisää.
+
+topic "Белки" 01M40V1RG4QB8HE1VJMWSFYZGN
+  document "Белок в питании" 01M40V1RN9KBEW52TYDQW1F6DT
+    created 2026-10-03T12:15:32Z, modified 2026-10-03T12:15:32Z
+    | Белок важен для роста[^cite:01M40V1RMKPT8XE70HJ6S3JY6R@12-14]. Его получают из мяса, рыбы и бобовых.
+
+source 01M40V1RG7R41CM2ET593GFG66
+  | id = "01M40V1RG7R41CM2ET593GFG66"
+  | type = "book"
+  | title = "Ravinto ja terveys"
+  | publisher = "Otava"
+  | edition = "2"
+  | file = "nieminen-2021.pdf"
+  | 
+  | [date]
+  | year = 2021
+  | 
+  | [[contributors]]
+  | role = "author"
+  | family = "Nieminen"
+  | given = "Anna Maria"
+  | 
+  | [appraisal]
+  | trust = "high"
+  | note = "The standard Finnish textbook; peer reviewed."
+  paper: 448 bytes
+
+source 01M40V1RJYNGQREHAQ8AJAX4X1
+  | id = "01M40V1RJYNGQREHAQ8AJAX4X1"
+  | type = "book"
+  | title = "Vitamiinit"
+  | publisher = "Otava"
+  | 
+  | [date]
+  | year = 2021
+  | 
+  | [[contributors]]
+  | role = "author"
+  | family = "Nieminen"
+  | given = "Anna Maria"
+
+source 01M40V1RK35T3QJDE9EBJ9G32F
+  | id = "01M40V1RK35T3QJDE9EBJ9G32F"
+  | type = "journal-article"
+  | title = "Protein intake in Finnish adults"
+  | container = "Journal of Nutrition"
+  | volume = "149"
+  | issue = "4"
+  | pages = "600-612"
+  | doi = "10.1093/jn/nxz001"
+  | 
+  | [date]
+  | year = 2019
+  | 
+  | [[contributors]]
+  | role = "author"
+  | family = "Kallio"
+  | given = "Kari"
+  | 
+  | [[contributors]]
+  | role = "author"
+  | family = "Virtanen"
+  | given = "Vilja"
+  | 
+  | [appraisal]
+  | trust = "medium"
+
+source 01M40V1RK794PATZ8AEFV6Z7GM
+  | id = "01M40V1RK794PATZ8AEFV6Z7GM"
+  | type = "web-page"
+  | title = "Protein requirements"
+  | date = "no-date"
+  | site = "Terveyskirjasto"
+  | url = "https://www.terveyskirjasto.fi/protein"
+  | 
+  | [retrieved]
+  | full = [
+  |     2026,
+  |     1,
+  |     12,
+  | ]
+
+source 01M40V1RKBAWG1XN9M7T0HJBNP
+  | id = "01M40V1RKBAWG1XN9M7T0HJBNP"
+  | type = "report"
+  | title = "Protein and amino acid requirements in human nutrition"
+  | publisher = "World Health Organization"
+  | number = "935"
+  | 
+  | [date]
+  | year = 2007
+  | 
+  | [[contributors]]
+  | role = "author"
+  | literal = "World Health Organization"
+  | abbreviation = "WHO"
+  | 
+  | [appraisal]
+  | note = "The international reference."
+
+source 01M40V1RKJBW8WF5BNS2XZWKSR
+  | id = "01M40V1RKJBW8WF5BNS2XZWKSR"
+  | type = "video"
+  | title = "How protein is measured"
+  | site = "YouTube"
+  | url = "https://www.youtube.com/watch?v=protein"
+  | 
+  | [date]
+  | full = [
+  |     2020,
+  |     3,
+  |     4,
+  | ]
+  | 
+  | [[contributors]]
+  | role = "director"
+  | family = "Laine"
+  | given = "Mikko"
+
+source 01M40V1RKPVMZ41D32YDVF839H
+  | id = "01M40V1RKPVMZ41D32YDVF839H"
+  | type = "audio"
+  | title = "Protein myths"
+  | container = "Ruokaradio"
+  | number = "42"
+  | url = "https://ruokaradio.fi/42"
+  | 
+  | [date]
+  | year = 2022
+  | 
+  | [[contributors]]
+  | role = "host"
+  | family = "Korhonen"
+  | given = "Sari"
+
+source 01M40V1RKT03K369MMDFJJWMGN
+  | id = "01M40V1RKT03K369MMDFJJWMGN"
+  | type = "book-chapter"
+  | title = "Protein metabolism"
+  | container = "Handbook of Nutrition"
+  | publisher = "Academic Press"
+  | pages = "45-78"
+  | edition = "3"
+  | 
+  | [date]
+  | year = 2018
+  | 
+  | [[contributors]]
+  | role = "author"
+  | family = "Smith"
+  | given = "Jane"
+  | 
+  | [[contributors]]
+  | role = "editor"
+  | family = "Brown"
+  | given = "Alan"
+
+source 01M40V1RKZMJFNV01TDAYWD6PH
+  | id = "01M40V1RKZMJFNV01TDAYWD6PH"
+  | type = "book"
+  | title = "Ravitsemuksen perusteet"
+  | publisher = "WSOY"
+  | edition = "4"
+  | 
+  | [date]
+  | year = 2015
+  | 
+  | [[contributors]]
+  | role = "author"
+  | family = "Müller"
+  | given = "Hans"
+  | 
+  | [[contributors]]
+  | role = "translator"
+  | family = "Virtanen"
+  | given = "Liisa"
+
+source 01M40V1RM87V1SJ71WQRVGX2DM
+  | id = "01M40V1RM87V1SJ71WQRVGX2DM"
+  | type = "web-page"
+  | title = "D-vitamiini"
+  | site = "THL"
+  | url = "https://thl.fi/d-vitamiini"
+  | 
+  | [date]
+  | full = [
+  |     2021,
+  |     3,
+  |     4,
+  | ]
+  | 
+  | [[contributors]]
+  | role = "author"
+  | literal = "Terveyden ja hyvinvoinnin laitos"
+  | abbreviation = "THL"
+
+source 01M40V1RMEMMJJPEMCB2SG11J2
+  | id = "01M40V1RMEMMJJPEMCB2SG11J2"
+  | type = "pdf"
+  | title = "Protein and exercise: A guide for students"
+  | date = "no-date"
+  | publisher = "University Sports Services"
+  | url = "https://www.example.edu/protein-and-exercise.pdf"
+
+source 01M40V1RMKPT8XE70HJ6S3JY6R
+  | id = "01M40V1RMKPT8XE70HJ6S3JY6R"
+  | type = "book"
+  | title = "Белок в питании"
+  | publisher = "Наука"
+  | 
+  | [date]
+  | year = 2018
+  | 
+  | [[contributors]]
+  | role = "author"
+  | family = "Петров"
+  | given = "Алексей"
+
+search "amino": Document "What protein is", Source "Protein and amino acid requirements in human nutrition"
+search "auringonvalosta": Document "D-vitamiinin tarve"
+search "белок": Document "Белок в питании", Source "Белок в питании"
+search "Nieminen": Source "Ravinto ja terveys", Source "Vitamiinit"
+search "Organization": Source "Protein and amino acid requirements in human nutrition"
+search "Sports": Source "Protein and exercise: A guide for students"

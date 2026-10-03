@@ -1,0 +1,16 @@
+id = "01M40V1RKBAWG1XN9M7T0HJBNP"
+type = "report"
+title = "Protein and amino acid requirements in human nutrition"
+publisher = "World Health Organization"
+number = "935"
+
+[date]
+year = 2007
+
+[[contributors]]
+role = "author"
+literal = "World Health Organization"
+abbreviation = "WHO"
+
+[appraisal]
+note = "The international reference."

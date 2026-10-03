@@ -61,6 +61,7 @@ say so — a guarantee can disappear without a single red build.
 | `tests/deleting.rs` | Deleting topics and documents, and what is kept |
 | `tests/images.rs`, `tests/attachments.rs` | Pictures and papers copied into the library |
 | `tests/fixture/` | A small shared library — the protein example, with Finnish and Cyrillic text |
+| `tests/libraries.rs`, `tests/fixtures/` | Real libraries checked in as folders: `minimal`, `damaged`, and `v1`, frozen |
 
 `contract.rs` runs against no client at all. That is the property keeping the two-repository
 boundary honest: logic that leaked out of the engine cannot be tested here, and its absence shows
@@ -98,6 +99,15 @@ break is in a diff somebody reviews. Its font, picture, links and outline are ch
 file's own objects. What no test here can do is open the files in the programs people use, so
 `PLC_EXPORT_TO=<folder> cargo test --test export` writes the example in every format to a
 folder, for opening by hand in Word, LibreOffice, a browser and a PDF reader.
+
+The libraries in `tests/fixtures/` are folders, checked in, opened as a person's library is —
+always from a copy, because opening writes the index. `damaged` holds the mistakes people make
+by hand and by file manager, and must open with every broken file named and none rewritten.
+`v1` is the format as M1 ships it, made by the engine itself, and **frozen**: a test holds a hash
+of its bytes and fails if anything in it changes. A new format gets a new fixture beside it,
+made by the engine that writes it, and `v1` stays to prove the old one still opens. What the
+engine reads from it is recorded in `v1-reading.txt`, rewritten with `PLC_BLESS=1`. Each library,
+and each fault in `damaged`, is described in `tests/fixtures/README.md`.
 
 An APA example from the manual is not a test to write but a case to add: a few lines in the
 right `tests/apa/<kind>.toml`, holding the source exactly as a library stores it and what APA

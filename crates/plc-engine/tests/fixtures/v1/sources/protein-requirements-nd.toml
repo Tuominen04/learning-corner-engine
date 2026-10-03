@@ -1,0 +1,13 @@
+id = "01M40V1RK794PATZ8AEFV6Z7GM"
+type = "web-page"
+title = "Protein requirements"
+date = "no-date"
+site = "Terveyskirjasto"
+url = "https://www.terveyskirjasto.fi/protein"
+
+[retrieved]
+full = [
+    2026,
+    1,
+    12,
+]

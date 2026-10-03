@@ -1,0 +1,17 @@
+id = "01M40V1RKJBW8WF5BNS2XZWKSR"
+type = "video"
+title = "How protein is measured"
+site = "YouTube"
+url = "https://www.youtube.com/watch?v=protein"
+
+[date]
+full = [
+    2020,
+    3,
+    4,
+]
+
+[[contributors]]
+role = "director"
+family = "Laine"
+given = "Mikko"
