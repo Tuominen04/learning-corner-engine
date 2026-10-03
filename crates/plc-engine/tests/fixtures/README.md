@@ -27,7 +27,7 @@ Each fault is one a person makes, by hand or by file manager:
 
 ## `v1` is frozen
 
-`v1` was made by the engine itself (v0.17.0), through its own operations, so every file is
+`v1` was made by the engine itself (v0.17.1), through its own operations, so every file is
 exactly what that engine writes. It holds every kind of source, every role, every shape of date,
 an attached paper, a picture beside its document, every form of citation, links between
 documents, and Finnish and Cyrillic in titles, folders and filenames.
