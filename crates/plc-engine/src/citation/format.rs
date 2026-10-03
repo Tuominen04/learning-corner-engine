@@ -326,7 +326,11 @@ pub fn reference_entry(source: &Source, disambiguation: &Disambiguation) -> Stri
 fn italic_title(source_type: SourceType) -> bool {
     matches!(
         source_type,
-        SourceType::Book | SourceType::Report | SourceType::WebPage | SourceType::Video
+        SourceType::Book
+            | SourceType::Report
+            | SourceType::WebPage
+            | SourceType::Video
+            | SourceType::Pdf
     )
 }
 
@@ -369,7 +373,11 @@ fn title_part(source: &Source) -> String {
             }
             out.push_str(" [Audio podcast episode]");
         }
-        SourceType::JournalArticle | SourceType::BookChapter | SourceType::WebPage => {}
+        // A document is only its title: APA 7 dropped the [PDF] that APA 6 put after it.
+        SourceType::JournalArticle
+        | SourceType::BookChapter
+        | SourceType::WebPage
+        | SourceType::Pdf => {}
     }
     out
 }
@@ -383,7 +391,7 @@ fn rest_part(source: &Source, authors: &[&Contributor]) -> String {
     };
 
     match source.source_type {
-        SourceType::Book | SourceType::Report => {
+        SourceType::Book | SourceType::Report | SourceType::Pdf => {
             if let Some(publisher) = unless_author(present(&source.publisher)) {
                 out.push_str(&publisher);
             }

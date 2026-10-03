@@ -21,6 +21,11 @@ pub enum SourceType {
     Video,
     Audio,
     Report,
+    /// A document on its own — a guideline, a brochure, lecture slides — that is none of the
+    /// above: the PDF somebody has, and knows no more about. APA 7 has no type for a file
+    /// format and cites such a work as what it is; for a document that is only itself, that is
+    /// the form of a stand-alone work, the one a report takes without its number (§10.4).
+    Pdf,
 }
 
 impl SourceType {
@@ -34,11 +39,16 @@ impl SourceType {
             Video,
             Audio,
             Report,
+            Pdf,
         ]
     }
 
     /// The fields APA 7 needs for this type. A source missing one is *incomplete*, never
     /// rejected — see [`Source::missing_fields`].
+    ///
+    /// Every type needs a title. A web page and a document need no author: plenty have none,
+    /// and APA 7 then cites them by their title (§9.12), so a page with nobody named on it is
+    /// complete rather than something to be told about.
     pub fn required_fields(self) -> &'static [Field] {
         use Field::*;
         use SourceType::*;
@@ -46,10 +56,11 @@ impl SourceType {
             Book => &[Authors, Date, Title, Publisher],
             BookChapter => &[Authors, Date, Title, Editors, Container, Publisher, Pages],
             JournalArticle => &[Authors, Date, Title, Container, Volume],
-            WebPage => &[Authors, Date, Title, Site],
+            WebPage => &[Date, Title, Site],
             Video => &[Authors, Date, Title, Site],
             Audio => &[Authors, Date, Title, Container],
             Report => &[Authors, Date, Title, Publisher],
+            Pdf => &[Date, Title],
         }
     }
 }
@@ -356,5 +367,33 @@ impl Source {
             .map(|c| c.sort_key())
             .filter(|k| !k.is_empty())
             .unwrap_or_else(|| self.title.clone())
+    }
+
+    /// What a search finds this source by, beside its title: everyone who made it, by their
+    /// whole name and by the short name a group goes by, and where it appeared and who put it
+    /// out — the journal, book or podcast, the publisher, the site. That is what someone
+    /// remembers of a source saved months ago: *the WHO report*, *the one in the Journal of
+    /// Nutrition*.
+    pub fn searchable_text(&self) -> String {
+        let people = self.contributors.iter().flat_map(|c| {
+            [
+                c.literal.as_deref(),
+                c.family.as_deref(),
+                c.given.as_deref(),
+                c.abbreviation.as_deref(),
+            ]
+        });
+        let places = [
+            self.container.as_deref(),
+            self.publisher.as_deref(),
+            self.site.as_deref(),
+        ];
+        people
+            .chain(places)
+            .flatten()
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }

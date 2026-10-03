@@ -308,14 +308,8 @@ impl Index {
             if !inserted.insert(source.id) {
                 continue;
             }
-            // Searchable by title and by the people who made it, which is how someone
-            // actually looks for a source they saved months ago.
-            let people: String = source
-                .contributors
-                .iter()
-                .map(|c| c.sort_key())
-                .collect::<Vec<_>>()
-                .join(" ");
+            // Searchable by title, and by what someone remembers of a source saved months
+            // ago: who made it, and where it appeared.
             insert_entity(
                 &tx,
                 source.id,
@@ -324,7 +318,7 @@ impl Index {
                 &source.title,
                 &source.date.year_text(),
                 &digest(source.title.as_bytes()),
-                &people,
+                &source.searchable_text(),
                 &found.path,
                 &found.revision.token(),
             )?;
