@@ -1,7 +1,7 @@
 # Testing
 
 > **Audience:** People changing the engine
-> **Status:** In progress — M0 implemented
+> **Status:** In progress — M1 implemented
 > **Last reviewed:** 2026-10-02
 
 There is no server, no network, and one user. That removes whole categories of testing and

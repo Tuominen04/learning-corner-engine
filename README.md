@@ -40,8 +40,10 @@ a computer that has never been online.
 
 ## Status
 
-**M0 — foundations.** Libraries, topics, documents, and the index. Sources and APA 7 citations
-are M1, backup M2, parallel texts M3, mind maps M4.
+**M1 — documents and sources.** On top of M0's libraries, topics, documents and index: sources
+of eight kinds, the library-wide disambiguation pass, APA 7 citations and reference lists,
+search across documents and sources, and export to PDF, Word, OpenDocument, a web page and
+plain text. Backup is M2, parallel texts M3, mind maps M4.
 
 Operations belonging to later milestones already exist and report themselves as unimplemented,
 so a client can be written against the whole surface now.

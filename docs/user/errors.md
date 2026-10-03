@@ -1,8 +1,8 @@
 # Errors
 
 > **Audience:** People calling the engine from a client
-> **Status:** In progress — M0 implemented
-> **Last reviewed:** 2026-09-07
+> **Status:** In progress — M1 implemented
+> **Last reviewed:** 2026-10-02
 
 Every operation returns `Result<T, Error>`, and every failure names one of a small closed set.
 The set is deliberately short so a client can handle each rather than showing a string and hoping.

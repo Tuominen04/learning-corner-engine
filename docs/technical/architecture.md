@@ -1,8 +1,8 @@
 # Architecture
 
 > **Audience:** People changing the engine
-> **Status:** In progress — M0 implemented
-> **Last reviewed:** 2026-10-01
+> **Status:** In progress — M1 implemented
+> **Last reviewed:** 2026-10-02
 
 How this crate is put together, and the rules that keep it that way. What it is *required* to do
 is specified in the main repository; this describes the implementation.

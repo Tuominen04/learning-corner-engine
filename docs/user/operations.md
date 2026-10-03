@@ -1,7 +1,7 @@
 # Operations
 
 > **Audience:** People calling the engine from a client
-> **Status:** In progress — M0 implemented
+> **Status:** In progress — M1 implemented
 > **Last reviewed:** 2026-10-02
 
 Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
