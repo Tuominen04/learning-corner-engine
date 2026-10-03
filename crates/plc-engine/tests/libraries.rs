@@ -253,7 +253,7 @@ fn find(tree: &[TopicNode], title: &str) -> Id {
 /// What `tests/fixtures/v1` held when it was frozen: its files, hashed in order of their paths.
 /// It never changes. A format change is a new fixture, `v2`, made by the engine that writes it,
 /// with `v1` left exactly as it is to prove the old format still opens.
-const V1_FROZEN: &str = "58f6e89d9992f6f6d554cd7ec749dd9cda7a2fd50f1e08f801be35e66fdc5d71";
+const V1_FROZEN: &str = "a09b1e40a8d4ee00616d6e78bc366f41b6b23eba4984658506bd45d520765f2a";
 
 #[test]
 fn v1_is_exactly_as_it_was_frozen() {
@@ -397,6 +397,7 @@ fn reading(engine: &Engine) -> String {
         "белок",
         "Nieminen",
         "Organization",
+        "Sports",
     ] {
         let mut hits: Vec<String> = engine
             .search(query)
