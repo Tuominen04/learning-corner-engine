@@ -1,0 +1,68 @@
+# Documents: a PDF that is none of the other kinds — a guideline, a brochure, a set of slides.
+# APA 7 has no type for a file format; it cites a work as what it is, and a document that is
+# only itself is cited as a stand-alone work, the way a report is without its number (§10.4).
+# Its title is in italics, and nothing says it is a PDF: APA 7 dropped the [PDF] of APA 6.
+# The examples are made up, organisations included; the rules are the manual's.
+
+[[case]]
+name = "a person's document, with who published it"
+parenthetical = "(Virtanen, 2021)"
+narrative = "Virtanen (2021)"
+reference = "Virtanen, L. (2021). *Protein in the diet of older adults*. Riverside University. https://www.example.edu/protein-older-adults.pdf"
+
+[case.source]
+id = "01JA00000000000000000000H1"
+type = "pdf"
+title = "Protein in the diet of older adults"
+date = { year = 2021 }
+publisher = "Riverside University"
+url = "https://www.example.edu/protein-older-adults.pdf"
+contributors = [{ role = "author", family = "Virtanen", given = "Liisa" }]
+
+[[case]]
+name = "a group that published its own document: the publisher is left out"
+parenthetical = "(Lakeside Food Council, 2023)"
+narrative = "Lakeside Food Council (2023)"
+reference = "Lakeside Food Council. (2023). *Nutrition for older people: A guide for care homes*. https://www.example.org/nutrition-older-people.pdf"
+
+[case.source]
+id = "01JA00000000000000000000H2"
+type = "pdf"
+title = "Nutrition for older people: A guide for care homes"
+date = { year = 2023 }
+publisher = "Lakeside Food Council"
+url = "https://www.example.org/nutrition-older-people.pdf"
+contributors = [{ role = "author", literal = "Lakeside Food Council" }]
+
+[[case]]
+name = "nobody named and no date: the title takes the author's place, in italics"
+parenthetical = "(*Protein and exercise: A guide for students*, n.d.)"
+narrative = "*Protein and exercise: A guide for students* (n.d.)"
+reference = "*Protein and exercise: A guide for students*. (n.d.). University Sports Services. https://www.example.edu/protein-and-exercise.pdf"
+
+[case.source]
+id = "01JA00000000000000000000H3"
+type = "pdf"
+title = "Protein and exercise: A guide for students"
+date = "no-date"
+publisher = "University Sports Services"
+url = "https://www.example.edu/protein-and-exercise.pdf"
+
+[[case]]
+name = "a document with a DOI cites the DOI, not the web address"
+parenthetical = "(Kallio & Mäkinen, 2020)"
+narrative = "Kallio and Mäkinen (2020)"
+reference = "Kallio, K., & Mäkinen, M. (2020). *Plant protein in school meals*. Northern Nutrition Institute. https://doi.org/10.1000/example.4417"
+
+[case.source]
+id = "01JA00000000000000000000H4"
+type = "pdf"
+title = "Plant protein in school meals"
+date = { year = 2020 }
+publisher = "Northern Nutrition Institute"
+doi = "10.1000/example.4417"
+url = "https://www.example.org/plant-protein.pdf"
+contributors = [
+  { role = "author", family = "Kallio", given = "Kai" },
+  { role = "author", family = "Mäkinen", given = "Maria" },
+]

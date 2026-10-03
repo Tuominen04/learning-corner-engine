@@ -21,6 +21,11 @@ pub enum SourceType {
     Video,
     Audio,
     Report,
+    /// A document on its own — a guideline, a brochure, lecture slides — that is none of the
+    /// above: the PDF somebody has, and knows no more about. APA 7 has no type for a file
+    /// format and cites such a work as what it is; for a document that is only itself, that is
+    /// the form of a stand-alone work, the one a report takes without its number (§10.4).
+    Pdf,
 }
 
 impl SourceType {
@@ -34,11 +39,16 @@ impl SourceType {
             Video,
             Audio,
             Report,
+            Pdf,
         ]
     }
 
     /// The fields APA 7 needs for this type. A source missing one is *incomplete*, never
     /// rejected — see [`Source::missing_fields`].
+    ///
+    /// Every type needs a title. A web page and a document need no author: plenty have none,
+    /// and APA 7 then cites them by their title (§9.12), so a page with nobody named on it is
+    /// complete rather than something to be told about.
     pub fn required_fields(self) -> &'static [Field] {
         use Field::*;
         use SourceType::*;
@@ -46,10 +56,11 @@ impl SourceType {
             Book => &[Authors, Date, Title, Publisher],
             BookChapter => &[Authors, Date, Title, Editors, Container, Publisher, Pages],
             JournalArticle => &[Authors, Date, Title, Container, Volume],
-            WebPage => &[Authors, Date, Title, Site],
+            WebPage => &[Date, Title, Site],
             Video => &[Authors, Date, Title, Site],
             Audio => &[Authors, Date, Title, Container],
             Report => &[Authors, Date, Title, Publisher],
+            Pdf => &[Date, Title],
         }
     }
 }

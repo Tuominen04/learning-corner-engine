@@ -715,6 +715,70 @@ fn an_episode_with_a_host_and_no_author_is_not_missing_its_author() {
 }
 
 #[test]
+fn a_web_page_or_a_document_with_nobody_named_on_it_is_complete() {
+    // Plenty of pages and documents name nobody, and APA 7 cites them by their title, so having
+    // no author is not something to be told about.
+    let mut page = Source::new(SourceType::WebPage, "Protein requirements", Date::NoDate);
+    page.site = Some("Terveyskirjasto".into());
+    assert_eq!(page.missing_fields(), vec![]);
+
+    let document = Source::new(
+        SourceType::Pdf,
+        "Protein and exercise: A guide for students",
+        Date::NoDate,
+    );
+    assert_eq!(document.missing_fields(), vec![]);
+
+    // A book with nobody named on it still says so.
+    let mut book = Source::new(SourceType::Book, "Ravinto ja terveys", Date::Year(2021));
+    book.publisher = Some("Otava".into());
+    assert_eq!(book.missing_fields(), vec![Field::Authors]);
+}
+
+#[test]
+fn every_kind_of_source_needs_its_title() {
+    for kind in SourceType::all() {
+        let untitled = Source::new(*kind, "  ", Date::Year(2021));
+        assert!(
+            untitled.missing_fields().contains(&Field::Title),
+            "{kind:?} does not ask for a title"
+        );
+    }
+}
+
+#[test]
+fn a_document_is_kept_as_one_and_cited_by_its_title() {
+    let (dir, mut engine) = library();
+    let mut document = Source::new(
+        SourceType::Pdf,
+        "Protein and exercise: A guide for students",
+        Date::NoDate,
+    );
+    document.publisher = Some("University Sports Services".into());
+
+    let (id, missing) = engine.source_create(document.clone()).unwrap();
+    assert!(missing.is_empty(), "{missing:?}");
+
+    // Stored as what it is, readable by anyone looking at the file.
+    let stored: Vec<String> = std::fs::read_dir(dir.path().join("sources"))
+        .unwrap()
+        .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap())
+        .collect();
+    assert!(
+        stored.iter().any(|text| text.contains("type = \"pdf\"")),
+        "{stored:?}"
+    );
+    assert_eq!(engine.source_read(id).unwrap(), document);
+
+    assert_eq!(
+        engine
+            .citation_format(id, Form::Parenthetical, None)
+            .unwrap(),
+        "(*Protein and exercise: A guide for students*, n.d.)"
+    );
+}
+
+#[test]
 fn citing_a_source_from_a_document_builds_its_reference_list() {
     let (_dir, mut engine) = library();
 
