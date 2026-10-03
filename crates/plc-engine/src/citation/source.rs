@@ -357,4 +357,32 @@ impl Source {
             .filter(|k| !k.is_empty())
             .unwrap_or_else(|| self.title.clone())
     }
+
+    /// What a search finds this source by, beside its title: everyone who made it, by their
+    /// whole name and by the short name a group goes by, and where it appeared and who put it
+    /// out — the journal, book or podcast, the publisher, the site. That is what someone
+    /// remembers of a source saved months ago: *the WHO report*, *the one in the Journal of
+    /// Nutrition*.
+    pub fn searchable_text(&self) -> String {
+        let people = self.contributors.iter().flat_map(|c| {
+            [
+                c.literal.as_deref(),
+                c.family.as_deref(),
+                c.given.as_deref(),
+                c.abbreviation.as_deref(),
+            ]
+        });
+        let places = [
+            self.container.as_deref(),
+            self.publisher.as_deref(),
+            self.site.as_deref(),
+        ];
+        people
+            .chain(places)
+            .flatten()
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
 }
