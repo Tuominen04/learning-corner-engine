@@ -631,8 +631,7 @@ fn drawn(bytes: &[u8]) -> String {
     for (number, page) in pdf.get_pages() {
         let fonts = pdf.get_page_fonts(page).unwrap();
         let glyphs = to_unicode(&pdf, fonts[b"F".as_slice()]);
-        let content =
-            lopdf::content::Content::decode(&pdf.get_page_content(page).unwrap()).unwrap();
+        let content = lopdf::content::Content::decode(&pdf.get_page_content(page)).unwrap();
 
         // Everything drawn: how high, how far across, and what.
         let mut pieces: Vec<(f32, f32, String)> = Vec::new();
