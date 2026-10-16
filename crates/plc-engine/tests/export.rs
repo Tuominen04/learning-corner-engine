@@ -377,7 +377,7 @@ fn unzip(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
             let mut part = zip.by_index(i).unwrap();
             let mut content = Vec::new();
             part.read_to_end(&mut content).unwrap();
-            (part.name().to_string(), content)
+            (part.name().unwrap().into_owned(), content)
         })
         .collect()
 }
