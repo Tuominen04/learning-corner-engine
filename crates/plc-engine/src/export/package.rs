@@ -71,7 +71,7 @@ mod tests {
         .unwrap();
         let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
         let mut first = zip.by_index(0).unwrap();
-        assert_eq!(first.name(), "mimetype");
+        assert_eq!(first.name().unwrap(), "mimetype");
         assert_eq!(first.compression(), CompressionMethod::Stored);
         let mut text = String::new();
         first.read_to_string(&mut text).unwrap();
