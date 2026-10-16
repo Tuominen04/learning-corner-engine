@@ -1,0 +1,29 @@
+name: Improvement
+description: A concrete change to the engine — faster, clearer, more robust, better documented.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a new feature or a change to what the app does, start a
+        [discussion](https://github.com/Tuominen04/learning-corner/discussions) in the app's
+        repository first — behaviour is specified there, not here.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is wrong or missing today. Lead with the problem, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: The change you suggest
+    validations:
+      required: true
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to open a pull request for this myself

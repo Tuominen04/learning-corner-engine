@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Problem while using the app
+    url: https://github.com/Tuominen04/learning-corner/issues/new/choose
+    about: Report it in the app's repository. It is moved here if the cause is in the engine.
+  - name: Idea or question
+    url: https://github.com/Tuominen04/learning-corner/discussions
+    about: Ideas, questions and feedback are discussed in the app's repository.
+  - name: Security problem
+    url: https://github.com/Tuominen04/learning-corner-engine/security/advisories/new
+    about: Report it privately, not as a public issue.
