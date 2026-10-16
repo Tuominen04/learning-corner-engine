@@ -8,12 +8,11 @@ From nothing to a library with a document in it.
 
 ## Add the dependency
 
-The crate is not published to a registry — both repositories are private — so it is pinned by
-immutable git tag:
+The crate is not published to a registry, so it is pinned by immutable git tag:
 
 ```toml
 [dependencies]
-plc-engine = { git = "https://github.com/Tuominen04/personal-learning-corner-engine", tag = "v0.1.0" }
+lc-engine = { git = "https://github.com/Tuominen04/learning-corner-engine", tag = "v0.19.0" }
 ```
 
 Never a `path` dependency in anything committed: it builds on its author's machine and nowhere
@@ -27,7 +26,7 @@ so there are no system libraries to find.
 A **library** is one folder that a person chose. Everything they write lives inside it.
 
 ```rust
-use plc_engine::api::Engine;
+use lc_engine::api::Engine;
 
 // A new library, in a folder that does not yet hold one.
 let mut engine = Engine::create("/home/someone/Learning", "Learning")?;
@@ -99,8 +98,8 @@ The fastest way to understand the storage format is to look at one:
 
 ```sh
 cargo run --example walkthrough
-find /tmp/plc-walkthrough -not -path '*/.plc/*'
-cat /tmp/plc-walkthrough/topics/protein/what-protein-is.md
+find /tmp/lc-walkthrough -not -path '*/.plc/*'
+cat /tmp/lc-walkthrough/topics/protein/what-protein-is.md
 ```
 
 Plain folders mirroring the topic tree, and documents that open in any text editor. That is the

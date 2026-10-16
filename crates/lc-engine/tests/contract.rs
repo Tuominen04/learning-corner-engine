@@ -4,11 +4,11 @@
 //! honest: logic that leaked out of the engine cannot be tested here, and its absence shows up
 //! as a gap.
 
-use plc_engine::api::Engine;
-use plc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
-use plc_engine::index::Kind;
-use plc_engine::store::Revision;
-use plc_engine::{Error, Id};
+use lc_engine::api::Engine;
+use lc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
+use lc_engine::index::Kind;
+use lc_engine::store::Revision;
+use lc_engine::{Error, Id};
 
 mod fixture;
 use fixture::Fixture;

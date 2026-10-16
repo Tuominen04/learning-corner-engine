@@ -54,14 +54,14 @@ catches the other two on every push.
 cargo run --example walkthrough
 ```
 
-Builds the roadmap's M0 walkthrough in `/tmp/plc-walkthrough`, then does the part worth watching:
+Builds the roadmap's M0 walkthrough in `/tmp/lc-walkthrough`, then does the part worth watching:
 deletes the index, rebuilds it, and proves nothing observable changed.
 
 Then look at what it wrote, which is the entire point of the storage format:
 
 ```sh
-find /tmp/plc-walkthrough -not -path '*/.plc/*'
-cat /tmp/plc-walkthrough/topics/protein/what-protein-is.md
+find /tmp/lc-walkthrough -not -path '*/.plc/*'
+cat /tmp/lc-walkthrough/topics/protein/what-protein-is.md
 ```
 
 It refuses to run against a directory that already holds something, and takes a path if you want
@@ -74,7 +74,7 @@ cargo run --example walkthrough -- /tmp/somewhere-else
 ## Layout
 
 ```
-crates/plc-engine/
+crates/lc-engine/
 ├── src/
 │   ├── error.rs        failure causes
 │   ├── id.rs           ULIDs
@@ -97,9 +97,12 @@ Unit tests sit beside the code they test; anything spanning layers goes in `test
 
 ## Versioning
 
-Released as immutable git tags — both repositories are private, so no registry is involved. Tags
-are never moved, deleted, or reused; a consumer bumping a version is a one-line diff naming the
-old tag and the new one.
+Released as immutable git tags rather than to a registry. Tags are never moved, deleted, or
+reused; a consumer bumping a version is a one-line diff naming the old tag and the new one. A
+ruleset on `v*` enforces that, and leaves creating a tag to the maintainer alone.
+
+A release is two steps: a pull request that raises `version` in the workspace `Cargo.toml`, then,
+once it is merged, a `vX.Y.Z` tag on that merge commit naming the same version.
 
 Semantic versioning is against the contract: a breaking contract change is a major bump, a new
 operation a minor one, a fix that changes no documented behaviour a patch.

@@ -5,12 +5,12 @@
 //! every disambiguation rule gets a case with more than one source — because those rules
 //! cannot be observed from a single citation at all.
 
-use plc_engine::citation::disambiguate::Disambiguation;
-use plc_engine::citation::format::{
+use lc_engine::citation::disambiguate::Disambiguation;
+use lc_engine::citation::format::{
     in_text, in_text_cite, parenthetical_together, reference_entry, reference_list, Cite, Form,
     Locator,
 };
-use plc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
+use lc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
 
 fn author(family: &str, given: &str) -> Contributor {
     Contributor::person(Role::Author, family, given)
@@ -648,8 +648,8 @@ fn a_group_author_files_under_its_full_name_and_not_its_short_form() {
 // the API a client actually calls — because M0 taught that a layer nothing exercises is a
 // layer where both sides can be correct and the product still not work.
 
-use plc_engine::api::Engine;
-use plc_engine::citation::Field;
+use lc_engine::api::Engine;
+use lc_engine::citation::Field;
 
 fn library() -> (tempfile::TempDir, Engine) {
     let dir = tempfile::tempdir().unwrap();
@@ -1040,7 +1040,7 @@ fn a_narrative_citation_reads_differently_from_a_parenthetical_one() {
         .unwrap();
 
     let body = engine.document_read(doc).unwrap().body;
-    let refs = plc_engine::citation::reference::parse_all(&body);
+    let refs = lc_engine::citation::reference::parse_all(&body);
     assert_eq!(refs.len(), 2);
 
     let requests: Vec<_> = refs
@@ -1063,7 +1063,7 @@ fn a_timestamp_cites_as_a_timestamp_and_not_as_a_page() {
     talk.site = Some("Aalto University".into());
     let (id, _) = engine.source_create(talk).unwrap();
 
-    let refs = plc_engine::citation::reference::parse_all(&format!("[^cite:{id}@time:1:04:22]"));
+    let refs = lc_engine::citation::reference::parse_all(&format!("[^cite:{id}@time:1:04:22]"));
     let requests: Vec<_> = refs
         .iter()
         .map(|r| (r.source, r.form, r.locator.clone()))
@@ -1113,7 +1113,7 @@ fn a_deleted_source_leaves_a_hole_rather_than_blanking_the_document() {
     let (alive, _) = engine
         .source_create(article("Still here", 2021, vec![author("Aho", "Ari")]))
         .unwrap();
-    let gone: plc_engine::Id = "01J8ZQ8D4Q6S8W0W2Y4A6C8E0G".parse().unwrap();
+    let gone: lc_engine::Id = "01J8ZQ8D4Q6S8W0W2Y4A6C8E0G".parse().unwrap();
 
     let rendered = engine
         .citation_format_many(&[

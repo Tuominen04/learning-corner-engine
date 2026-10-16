@@ -7,9 +7,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use plc_engine::api::{Engine, Keep};
-use plc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
-use plc_engine::Error;
+use lc_engine::api::{Engine, Keep};
+use lc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
+use lc_engine::Error;
 
 mod fixture;
 use fixture::Fixture;
@@ -21,7 +21,7 @@ fn write_pdf(at: &Path, marker: &str) -> PathBuf {
     at.to_path_buf()
 }
 
-fn a_source(engine: &mut Engine) -> plc_engine::Id {
+fn a_source(engine: &mut Engine) -> lc_engine::Id {
     let mut source = Source::new(
         SourceType::JournalArticle,
         "Amino acids in adults",
@@ -108,7 +108,7 @@ fn a_refused_move_leaves_the_original_where_it_is() {
     // rather than merely to after the PDF check.
     let real = write_pdf(&downloads.path().join("paper.pdf"), "the paper");
     assert!(engine
-        .source_attach(plc_engine::Id::new(), &real, Keep::Move)
+        .source_attach(lc_engine::Id::new(), &real, Keep::Move)
         .is_err());
     assert!(
         real.is_file(),

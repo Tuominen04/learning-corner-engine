@@ -10,9 +10,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
-use plc_engine::citation::disambiguate::Disambiguation;
-use plc_engine::citation::format::{in_text, reference_entry, Form};
-use plc_engine::citation::source::{Source, SourceType};
+use lc_engine::citation::disambiguate::Disambiguation;
+use lc_engine::citation::format::{in_text, reference_entry, Form};
+use lc_engine::citation::source::{Source, SourceType};
 use serde::Deserialize;
 
 #[derive(Deserialize)]

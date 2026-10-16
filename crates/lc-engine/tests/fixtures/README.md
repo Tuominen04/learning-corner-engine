@@ -38,5 +38,5 @@ new format makes `v2` beside it, and `v1` stays, proving that libraries made bef
 still open.
 
 `v1-reading.txt` is not frozen: it is what this engine reads from `v1`. A deliberate change to
-how a library is read changes it, and is rewritten with `PLC_BLESS=1` like every expected file
+how a library is read changes it, and is rewritten with `LC_BLESS=1` like every expected file
 — read what was written before committing it.

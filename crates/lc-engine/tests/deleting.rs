@@ -7,8 +7,8 @@
 
 use std::fs;
 
-use plc_engine::api::Contents;
-use plc_engine::Error;
+use lc_engine::api::Contents;
+use lc_engine::Error;
 
 mod fixture;
 use fixture::Fixture;
@@ -116,7 +116,7 @@ fn a_picture_travels_with_the_document_that_moves_up() {
 
     let name = fixture
         .engine()
-        .document_attach_image(ids.how_used, &original, plc_engine::api::Keep::Copy)
+        .document_attach_image(ids.how_used, &original, lc_engine::api::Keep::Copy)
         .unwrap();
     let view = fixture.engine().document_read(ids.how_used).unwrap();
     fixture

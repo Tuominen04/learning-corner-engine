@@ -91,4 +91,4 @@ produces two components each convinced the other is wrong.
 
 - [Development](development.md) — building and running it
 - [Testing](testing.md) — the suites and the properties they defend
-- [The specification](https://github.com/Tuominen04/personal-learning-corner/tree/main/docs/technical) — normative
+- [The specification](https://github.com/Tuominen04/learning-corner/tree/main/docs/technical) — normative

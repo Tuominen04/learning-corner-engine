@@ -1,6 +1,6 @@
 [package]
-name = "plc-engine"
-description = "Library engine for Personal Learning Corner: storage, index, and the operations the interface calls."
+name = "lc-engine"
+description = "Library engine for Learning Corner: storage, index, and the operations the interface calls."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

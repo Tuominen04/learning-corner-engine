@@ -12,9 +12,9 @@
 use std::fs;
 use std::path::Path;
 
-use plc_engine::api::{Engine, LibraryFolder};
-use plc_engine::library::MANIFEST;
-use plc_engine::Error;
+use lc_engine::api::{Engine, LibraryFolder};
+use lc_engine::library::MANIFEST;
+use lc_engine::Error;
 
 mod fixture;
 use fixture::Fixture;

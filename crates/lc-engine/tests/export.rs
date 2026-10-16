@@ -4,7 +4,7 @@
 //! person has read: a change to what an export says must change one of those files, in a diff
 //! somebody reviews. So is the PDF, read back out of the file line by line as a reader draws it
 //! (`protein.pdf.txt`), so that a change to where its lines and pages break is in a diff too. To
-//! write them afresh after a deliberate change, run with `PLC_BLESS=1` — then read what was
+//! write them afresh after a deliberate change, run with `LC_BLESS=1` — then read what was
 //! written before committing it, because blessing a wrong file makes it the standard.
 
 use std::collections::HashMap;
@@ -12,10 +12,10 @@ use std::fs;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
-use plc_engine::api::Keep;
-use plc_engine::citation::{Contributor, Date, Role, Source, SourceType};
-use plc_engine::export::Format;
-use plc_engine::{Engine, Error, Id};
+use lc_engine::api::Keep;
+use lc_engine::citation::{Contributor, Date, Role, Source, SourceType};
+use lc_engine::export::Format;
+use lc_engine::{Engine, Error, Id};
 
 /// A real PNG — one amber pixel, with every checksum right — so the picture inside the web
 /// page is one a browser draws.
@@ -179,18 +179,18 @@ fn protein() -> (Library, Id) {
     (library, what)
 }
 
-/// The file in `tests/export/`, or — with `PLC_BLESS=1` — the file written from `actual`.
+/// The file in `tests/export/`, or — with `LC_BLESS=1` — the file written from `actual`.
 fn expect_file(name: &str, actual: &str) {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/export")
         .join(name);
-    if std::env::var_os("PLC_BLESS").is_some() {
+    if std::env::var_os("LC_BLESS").is_some() {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, actual).unwrap();
         return;
     }
     let expected = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("{}: {e} — run with PLC_BLESS=1 to write it", path.display()));
+        .unwrap_or_else(|e| panic!("{}: {e} — run with LC_BLESS=1 to write it", path.display()));
     if actual != expected {
         let written = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
         fs::write(&written, actual).unwrap();
@@ -346,11 +346,11 @@ fn each_format_knows_its_extension() {
     assert_eq!(Format::Pdf.extension(), "pdf");
 }
 
-/// With `PLC_EXPORT_TO=<folder>`, the protein example in every format, for opening by hand in
+/// With `LC_EXPORT_TO=<folder>`, the protein example in every format, for opening by hand in
 /// a word processor and a browser — what no test here can do for you.
 #[test]
 fn every_format_can_be_written_out_for_opening_by_hand() {
-    let Some(folder) = std::env::var_os("PLC_EXPORT_TO") else {
+    let Some(folder) = std::env::var_os("LC_EXPORT_TO") else {
         return;
     };
     let (library, what) = protein();

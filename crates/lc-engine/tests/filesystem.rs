@@ -5,8 +5,8 @@
 
 use std::fs;
 
-use plc_engine::api::Engine;
-use plc_engine::Error;
+use lc_engine::api::Engine;
+use lc_engine::Error;
 
 mod fixture;
 use fixture::Fixture;

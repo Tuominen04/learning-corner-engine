@@ -17,7 +17,7 @@ tutorial to find the layering rules.
 
 Neither tree is normative. **What the engine is required to do** is specified in the main
 repository, under
-[`docs/technical/`](https://github.com/Tuominen04/personal-learning-corner/tree/main/docs/technical):
+[`docs/technical/`](https://github.com/Tuominen04/learning-corner/tree/main/docs/technical):
 
 | Document | Specifies |
 | --- | --- |

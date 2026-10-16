@@ -8,7 +8,7 @@
 
 use std::fs;
 
-use plc_engine::Error;
+use lc_engine::Error;
 
 mod fixture;
 use fixture::Fixture;
@@ -16,7 +16,7 @@ use fixture::Fixture;
 const CITE: &str = "01J8ZQ8D4Q6S8W0W2Y4A6C8E0G";
 
 /// Put a known body in place and hand back its revision.
-fn set(fixture: &mut Fixture, id: plc_engine::Id, body: &str) -> plc_engine::store::Revision {
+fn set(fixture: &mut Fixture, id: lc_engine::Id, body: &str) -> lc_engine::store::Revision {
     let view = fixture.engine().document_read(id).unwrap();
     fixture
         .engine()
@@ -135,7 +135,7 @@ fn a_picture_in_the_taken_text_still_resolves() {
 
     let name = fixture
         .engine()
-        .document_attach_image(ids.what_protein_is, &original, plc_engine::api::Keep::Copy)
+        .document_attach_image(ids.what_protein_is, &original, lc_engine::api::Keep::Copy)
         .unwrap();
     let body = format!("Intro.\n\nAs shown ![Diagram]({name}) it works.");
     let revision = set(&mut fixture, ids.what_protein_is, &body);

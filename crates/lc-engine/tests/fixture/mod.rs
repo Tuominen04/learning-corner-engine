@@ -4,8 +4,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use plc_engine::api::Engine;
-use plc_engine::Id;
+use lc_engine::api::Engine;
+use lc_engine::Id;
 
 pub struct Fixture {
     dir: tempfile::TempDir,

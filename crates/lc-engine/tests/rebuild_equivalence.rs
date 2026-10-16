@@ -7,8 +7,8 @@
 //! It belongs here from M0 rather than later. Retrofitting it means discovering everything
 //! that already violates it, at the point when all of it is load-bearing.
 
-use plc_engine::api::{DocumentView, Engine, TopicNode};
-use plc_engine::Id;
+use lc_engine::api::{DocumentView, Engine, TopicNode};
+use lc_engine::Id;
 
 mod fixture;
 use fixture::Fixture;

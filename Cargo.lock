@@ -421,6 +421,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "lc-engine"
+version = "0.19.0"
+dependencies = [
+ "blake3",
+ "flate2",
+ "gif",
+ "lopdf",
+ "pdf-writer",
+ "png",
+ "roxmltree",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "subsetter",
+ "tempfile",
+ "thiserror",
+ "time",
+ "toml",
+ "ttf-parser",
+ "ulid",
+ "zip",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -574,30 +598,6 @@ name = "pkg-config"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
-
-[[package]]
-name = "plc-engine"
-version = "0.18.0"
-dependencies = [
- "blake3",
- "flate2",
- "gif",
- "lopdf",
- "pdf-writer",
- "png",
- "roxmltree",
- "rusqlite",
- "serde",
- "serde_json",
- "subsetter",
- "tempfile",
- "thiserror",
- "time",
- "toml",
- "ttf-parser",
- "ulid",
- "zip",
-]
 
 [[package]]
 name = "png"
