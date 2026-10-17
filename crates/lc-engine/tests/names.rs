@@ -238,7 +238,7 @@ fn a_picture_still_sits_beside_its_document_after_both_are_renamed() {
 
     let name = fixture
         .engine()
-        .document_attach_image(ids.what_protein_is, &original, plc_engine::api::Keep::Copy)
+        .document_attach_image(ids.what_protein_is, &original, lc_engine::api::Keep::Copy)
         .unwrap();
     let view = fixture.engine().document_read(ids.what_protein_is).unwrap();
     fixture

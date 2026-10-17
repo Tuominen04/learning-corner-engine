@@ -87,7 +87,7 @@ Put it beside the code if it is pure logic, in `tests/` if it spans layers or to
 directory. Use `tempfile::tempdir()` — never a fixed path, and never anything outside a temporary
 directory.
 
-An expected export in `tests/export/` is rewritten by running the suite with `PLC_BLESS=1`. Read
+An expected export in `tests/export/` is rewritten by running the suite with `LC_BLESS=1`. Read
 what it wrote before committing it: blessing a wrong file makes it the standard every later
 export is held to.
 
@@ -97,7 +97,7 @@ line by line as a reader draws it, with italics, bold and links marked, and that
 compared exactly with `tests/export/protein.pdf.txt` — so a change to where its lines or pages
 break is in a diff somebody reviews. Its font, picture, links and outline are checked in the
 file's own objects. What no test here can do is open the files in the programs people use, so
-`PLC_EXPORT_TO=<folder> cargo test --test export` writes the example in every format to a
+`LC_EXPORT_TO=<folder> cargo test --test export` writes the example in every format to a
 folder, for opening by hand in Word, LibreOffice, a browser and a PDF reader.
 
 The libraries in `tests/fixtures/` are folders, checked in, opened as a person's library is —
@@ -106,7 +106,7 @@ by hand and by file manager, and must open with every broken file named and none
 `v1` is the format as M1 ships it, made by the engine itself, and **frozen**: a test holds a hash
 of its bytes and fails if anything in it changes. A new format gets a new fixture beside it,
 made by the engine that writes it, and `v1` stays to prove the old one still opens. What the
-engine reads from it is recorded in `v1-reading.txt`, rewritten with `PLC_BLESS=1`. Each library,
+engine reads from it is recorded in `v1-reading.txt`, rewritten with `LC_BLESS=1`. Each library,
 and each fault in `damaged`, is described in `tests/fixtures/README.md`.
 
 An APA example from the manual is not a test to write but a case to add: a few lines in the

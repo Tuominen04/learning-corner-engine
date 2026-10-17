@@ -1,0 +1,44 @@
+name: Engine bug
+description: The engine does something its documentation or the specification says it should not.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is for bugs you can show **in the engine itself** — from a test, an example, or your own
+        code calling it. If you found the problem while using the app, report it in
+        [Learning Corner](https://github.com/Tuominen04/learning-corner/issues/new/choose) instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what the engine did instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The smallest code, library or test that shows it. A failing test is ideal.
+      render: rust
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Engine version
+      description: The tag you depend on, or the commit you built.
+      placeholder: v0.19.0
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Fedora 44
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Data
+      options:
+        - label: Content was lost, overwritten or damaged

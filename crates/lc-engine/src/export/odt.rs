@@ -211,7 +211,7 @@ fn meta(title: &str) -> String {
         "{HEADER}<office:document-meta xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\" \
          xmlns:dc=\"http://purl.org/dc/elements/1.1/\" \
          xmlns:meta=\"urn:oasis:names:tc:opendocument:xmlns:meta:1.0\" office:version=\"1.3\">\
-         <office:meta><meta:generator>Personal Learning Corner</meta:generator>\
+         <office:meta><meta:generator>Learning Corner</meta:generator>\
          <dc:title>{}</dc:title></office:meta></office:document-meta>",
         xml_text(title)
     )

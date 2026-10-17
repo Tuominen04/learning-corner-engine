@@ -4,12 +4,12 @@
 
 use std::path::PathBuf;
 
-use plc_engine::api::Engine;
+use lc_engine::api::Engine;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root: PathBuf = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "/tmp/plc-walkthrough".into())
+        .unwrap_or_else(|| "/tmp/lc-walkthrough".into())
         .into();
 
     // Refuse to touch a directory that already holds something. An example that quietly
@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if root.exists() && root.read_dir()?.next().is_some() {
         eprintln!(
             "{} is not empty. Remove it, or pass a path that does not exist:\n\n    \
-             cargo run --example walkthrough -- /tmp/plc-walkthrough\n",
+             cargo run --example walkthrough -- /tmp/lc-walkthrough\n",
             root.display()
         );
         std::process::exit(1);

@@ -9,14 +9,14 @@
 
 use std::path::PathBuf;
 
-use plc_engine::api::Engine;
-use plc_engine::citation::reference::parse_all;
-use plc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
+use lc_engine::api::Engine;
+use lc_engine::citation::reference::parse_all;
+use lc_engine::citation::source::{Contributor, Date, Role, Source, SourceType};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root: PathBuf = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "/tmp/plc-citing".into())
+        .unwrap_or_else(|| "/tmp/lc-citing".into())
         .into();
 
     // Same refusal as the walkthrough: an example that empties a path handed to it on the
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if root.exists() && root.read_dir()?.next().is_some() {
         eprintln!(
             "{} is not empty. Remove it, or pass a path that does not exist:\n\n    \
-             cargo run --example citing -- /tmp/plc-citing\n",
+             cargo run --example citing -- /tmp/lc-citing\n",
             root.display()
         );
         std::process::exit(1);

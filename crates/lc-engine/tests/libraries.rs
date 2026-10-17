@@ -10,8 +10,8 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use plc_engine::api::TopicNode;
-use plc_engine::{Engine, Id};
+use lc_engine::api::TopicNode;
+use lc_engine::{Engine, Id};
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -67,15 +67,15 @@ fn files(root: &Path) -> BTreeMap<String, Vec<u8>> {
     found
 }
 
-/// The file in `tests/fixtures/`, or — with `PLC_BLESS=1` — the file written from `actual`.
+/// The file in `tests/fixtures/`, or — with `LC_BLESS=1` — the file written from `actual`.
 fn expect_file(name: &str, actual: &str) {
     let path = fixture(name);
-    if std::env::var_os("PLC_BLESS").is_some() {
+    if std::env::var_os("LC_BLESS").is_some() {
         fs::write(&path, actual).unwrap();
         return;
     }
     let expected = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("{}: {e} — run with PLC_BLESS=1 to write it", path.display()));
+        .unwrap_or_else(|e| panic!("{}: {e} — run with LC_BLESS=1 to write it", path.display()));
     if actual != expected {
         let written = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
         fs::write(&written, actual).unwrap();
@@ -203,7 +203,7 @@ fn an_orphaned_citation_is_kept_and_shows_as_missing() {
         "{}",
         document.body
     );
-    let requests: Vec<_> = plc_engine::citation::reference::parse_all(&document.body)
+    let requests: Vec<_> = lc_engine::citation::reference::parse_all(&document.body)
         .into_iter()
         .map(|c| (c.source, c.form, c.locator))
         .collect();

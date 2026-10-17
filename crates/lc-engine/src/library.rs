@@ -21,6 +21,9 @@ pub const FORMAT_VERSION: u32 = 1;
 pub const MANIFEST: &str = "library.toml";
 
 /// Derived data. Safe to delete; rebuilt on demand.
+///
+/// Named for the project's original name, Personal Learning Corner, and deliberately kept through
+/// the rename: it is part of the storage format, and every existing library already has one.
 pub const WORK_DIR: &str = ".plc";
 
 /// Copies kept when the user resolved a conflict. Never deleted automatically.
