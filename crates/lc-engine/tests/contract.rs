@@ -463,20 +463,15 @@ fn operations_from_later_milestones_are_named_and_unimplemented() {
     // Present in the surface so the interface can be written against the whole contract, and
     // so filling them in later is a body change rather than a shape change.
     let mut fixture = Fixture::populated();
-    let root = fixture.engine().root().to_path_buf();
 
-    // source_create and citation_format stood here until M1 filled them in, which is the
-    // point of the pattern: a body changed, no signature moved, and no client broke.
+    // source_create and citation_format stood here until M1 filled them in, and backup_plan
+    // until M2 did, which is the point of the pattern: a body changed, and no client broke.
     assert!(matches!(
         fixture.engine().work_create(),
         Err(Error::Unimplemented(_))
     ));
     assert!(matches!(
         fixture.engine().map_read(),
-        Err(Error::Unimplemented(_))
-    ));
-    assert!(matches!(
-        fixture.engine().backup_plan(&root),
         Err(Error::Unimplemented(_))
     ));
 }

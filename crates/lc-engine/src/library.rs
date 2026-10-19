@@ -42,7 +42,7 @@ const OWN: &[&str] = &[
 
 /// What a file manager leaves in any folder it has shown, to remember how it showed it. It
 /// belongs to the folder wherever the folder goes, so it makes no folder anybody else's.
-const FOLDER_NOTES: &[&str] = &[".directory", ".DS_Store", "Thumbs.db", "desktop.ini"];
+pub(crate) const FOLDER_NOTES: &[&str] = &[".directory", ".DS_Store", "Thumbs.db", "desktop.ini"];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Manifest {

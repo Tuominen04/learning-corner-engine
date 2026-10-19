@@ -11,6 +11,7 @@
 
 pub mod api;
 pub mod atomic;
+pub mod backup;
 pub mod citation;
 pub mod error;
 pub mod export;
