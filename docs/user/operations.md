@@ -1,8 +1,8 @@
 # Operations
 
 > **Audience:** People calling the engine from a client
-> **Status:** In progress — M1 implemented
-> **Last reviewed:** 2026-10-02
+> **Status:** In progress — M2 implemented
+> **Last reviewed:** 2026-10-19
 
 Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
 milestones already exist and return `Unimplemented`, so a client can be written against the whole
@@ -248,13 +248,49 @@ who made it — whole names, and the short name a group goes by, so `WHO` finds 
 Organization's report — and by where it appeared: the journal, book or podcast, the publisher,
 the site.
 
+## Backup
+
+The library leads and the drive follows. Every call is two-phase: a `Plan` is what the person is
+shown, and nothing is written until it is applied with their answers. The rules are the
+specification's, in
+[Backup and synchronisation](https://github.com/Tuominen04/learning-corner/blob/main/docs/technical/backup-and-sync.md).
+
+| Call | Does |
+| --- | --- |
+| `backup_plan(destination)` | What backing up the open library to `destination` would do. The destination must be empty, or a copy of this library |
+| `backup_apply(plan, overwrite)` | Makes the drive exactly like the library. `overwrite` is required when `plan.drive_changes()` is not zero |
+| `Engine::restore_plan(drive, destination)` | What bringing `drive` back into `destination` would do — the library's own folder (a bring-back), or an empty one (a restore). Needs no open library |
+| `Engine::restore_apply(plan, answers)` | Brings the drive's changes in, with an `Answer` for every entry whose `action` is `Ask` |
+
+A plan lists only the paths that differ. Each `Entry` names its `outcome` (a row of the
+comparison table), both sides' `digest`, `size` and `modified`, the `action` applying it takes,
+and whether it is a `drive_change` — a change made on the drive itself, which is what a backup
+warns about. `drive_changes()` and `asks()` count them.
+
+```rust
+let plan = engine.backup_plan(drive)?;
+if plan.drive_changes() > 0 {
+    // Show the person the changes on the drive: bring them back first, or overwrite them.
+}
+let done = engine.backup_apply(&plan, overwrite)?;
+println!("{} copied, {} removed, {} kept aside", done.copied.len(), done.removed.len(), done.kept.len());
+```
+
+An `Answer` is `KeepLibrary`, `TakeDrive`, or `KeepBoth` — the last only where both sides have
+the file, and saved beside the library's as `<name> (from backup YYYY-MM-DD).<ext>`.
+
+Every version an apply replaces or removes in the library, and every change on the drive a
+backup overwrites, is kept first under `.conflicts/<time>/` in the library; `Applied::kept` lists
+where. A file whose digest is no longer what the plan saw stops the apply with `Conflict`; what
+was done stays done, and a fresh plan shows what is left. Bringing back into the library that is
+open means closing it first.
+
 ## Later milestones
 
 These exist and return `Unimplemented`:
 
 | Call | Arrives in |
 | --- | --- |
-| `backup_plan` | M2 — backup and restore |
 | `work_create` | M3 — parallel texts |
 | `map_read` | M4 — mind maps |
 

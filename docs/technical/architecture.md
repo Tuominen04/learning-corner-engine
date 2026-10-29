@@ -42,6 +42,7 @@ api                     Engine — what a client calls
 | `index` | Tables, full-text search, incremental update, rebuild |
 | `citation` | Sources, the library-wide disambiguation pass, and the APA 7 formatters |
 | `export` | A document as somebody else reads it: one model read from the body, a writer per format |
+| `backup` | Back up, bring back and restore: the scan, the per-drive record, the comparison table as a pure function, and the apply that keeps what it replaces |
 | `api` | `Engine`: the operations, and conversion into what a client sees |
 
 ## Rules

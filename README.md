@@ -68,7 +68,11 @@ If this project stopped tomorrow, someone's notes would still open in any text e
 **M1 — documents and sources.** On top of M0's libraries, topics, documents and index: sources
 of eight kinds, the library-wide disambiguation pass, APA 7 citations and reference lists,
 search across documents and sources, and export to PDF, Word, OpenDocument, a web page and
-plain text. Backup is M2, parallel texts M3, mind maps M4.
+plain text.
+
+**M2 — backup and restore**, in the engine: back up to a drive, bring the drive's changes back,
+restore into an empty folder — two-phase, resumable, and keeping every version it replaces.
+Parallel texts are M3, mind maps M4.
 
 Operations belonging to later milestones already exist and report themselves as unimplemented,
 so a client can be written against the whole surface now.

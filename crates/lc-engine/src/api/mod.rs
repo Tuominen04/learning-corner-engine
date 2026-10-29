@@ -13,6 +13,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::atomic;
+use crate::backup;
 use crate::citation::disambiguate::Disambiguation;
 use crate::citation::format::{self, Form, Locator};
 use crate::citation::{CitationRef, Field, Source};
@@ -1072,8 +1073,36 @@ impl Engine {
         Err(Error::Unimplemented("map.read"))
     }
 
-    pub fn backup_plan(&self, _destination: &Path) -> Result<()> {
-        Err(Error::Unimplemented("backup.plan"))
+    // ---- backup ----------------------------------------------------------------
+
+    /// Plan a backup of this library to `destination`: empty, or a copy of this library.
+    pub fn backup_plan(&self, destination: &Path) -> Result<backup::Plan> {
+        backup::plan_backup(&self.library, destination)
+    }
+
+    /// Apply a backup plan. `overwrite` is required when the drive has changes of its own.
+    pub fn backup_apply(
+        &mut self,
+        plan: &backup::Plan,
+        overwrite: bool,
+    ) -> Result<backup::Applied> {
+        backup::apply_backup(&self.library, plan, overwrite)
+    }
+
+    /// Plan bringing `drive` back into `destination`: a library's own folder, or an empty one.
+    ///
+    /// Needs no open library. Bringing back into the library that is open means closing it
+    /// first, so nothing is written to it from two places at once.
+    pub fn restore_plan(drive: &Path, destination: &Path) -> Result<backup::Plan> {
+        backup::plan_restore(drive, destination)
+    }
+
+    /// Apply a restore plan, with an answer for every entry that asks.
+    pub fn restore_apply(
+        plan: &backup::Plan,
+        answers: &std::collections::BTreeMap<String, backup::Answer>,
+    ) -> Result<backup::Applied> {
+        backup::apply_restore(plan, answers)
     }
 
     // ---- internals -------------------------------------------------------------
