@@ -26,4 +26,4 @@ ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
 png = "0.18"
 gif = { version = "0.14", default-features = false, features = ["std"] }
 flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
-lopdf = { version = "0.45", default-features = false }
+lopdf = { version = "0.46", default-features = false }
