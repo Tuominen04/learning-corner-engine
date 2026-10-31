@@ -195,6 +195,18 @@ impl Engine {
         .map(|(view, ())| view)
     }
 
+    /// Move an edition to `position` among the panes, counting from 1.
+    pub fn work_move_edition(
+        &mut self,
+        id: Id,
+        edition: Id,
+        position: usize,
+        revision: &WorkRevision,
+    ) -> Result<WorkView> {
+        self.change_work(id, revision, |w| w.move_edition(edition, position))
+            .map(|(view, ())| view)
+    }
+
     /// What removing an edition deletes. Asked before [`Engine::work_remove_edition`].
     pub fn work_remove_edition_plan(&self, id: Id, edition: Id) -> Result<EditionContents> {
         let entry = self.expect(id, Kind::Work)?;

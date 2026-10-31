@@ -121,6 +121,29 @@ fn editions_are_added_lined_up_and_filled_row_by_row() {
 }
 
 #[test]
+fn the_panes_can_be_put_in_another_order() {
+    let (_dir, mut engine) = library();
+    let view = poem(&mut engine);
+    let view = engine
+        .work_add_edition(
+            view.id,
+            translation("fi"),
+            "yksi\nkaksi\nkolme",
+            &view.revision,
+        )
+        .unwrap();
+    let fi = view.editions[1].id;
+    let view = engine
+        .work_move_edition(view.id, fi, 1, &view.revision)
+        .unwrap();
+    assert_eq!(view.editions[0].id, fi);
+    assert_eq!(texts(&view, 0), ["yksi", "kaksi", "kolme"]);
+    assert!(view.misalignments.is_empty());
+    let reopened = Engine::open(engine.root()).unwrap();
+    assert_eq!(reopened.work_read(view.id, &[]).unwrap().editions[0].id, fi);
+}
+
+#[test]
 fn a_second_original_and_a_scheme_on_a_translation_are_refused() {
     let (_dir, mut engine) = library();
     let view = poem(&mut engine);

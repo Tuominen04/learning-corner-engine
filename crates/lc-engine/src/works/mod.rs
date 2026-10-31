@@ -334,6 +334,24 @@ impl Work {
         Ok(())
     }
 
+    /// Move an edition to `position` among the panes, counting from 1. The others keep their
+    /// order around it. Only the list in `work.toml` changes; no row moves.
+    pub fn move_edition(&mut self, edition: Id, position: usize) -> Result<()> {
+        let from = self.edition(edition)?;
+        let count = self.manifest.editions.len();
+        if position == 0 || position > count {
+            return Err(Error::invalid(
+                "position",
+                format!("a position from 1 to {count}"),
+            ));
+        }
+        let e = self.manifest.editions.remove(from);
+        let cells = self.cells.remove(from);
+        self.manifest.editions.insert(position - 1, e);
+        self.cells.insert(position - 1, cells);
+        Ok(())
+    }
+
     /// Take an edition out, returning its file name. The original stays.
     pub fn remove_edition(&mut self, edition: Id) -> Result<String> {
         let i = self.edition(edition)?;
@@ -1068,6 +1086,22 @@ mod tests {
         assert_eq!(plan.editions[0].rows_after, 3);
         assert_eq!(plan.notes_moved.len(), 1, "row 2 now holds other words");
         assert_eq!(plan.work.manifest.unit, Unit::Sentence);
+    }
+
+    #[test]
+    fn editions_move_among_the_panes_with_their_rows() {
+        let mut w = work("a\nb");
+        let f = fi(&mut w, "A\nB");
+        w.move_edition(f, 1).unwrap();
+        assert_eq!(w.manifest.editions[0].id, f);
+        assert_eq!(texts(&w, 0), ["A", "B"]);
+        assert_eq!(texts(&w, 1), ["a", "b"]);
+        assert_eq!(
+            w.rows(),
+            2,
+            "rows are still counted in the original, wherever it is"
+        );
+        assert!(w.move_edition(f, 3).is_err());
     }
 
     #[test]

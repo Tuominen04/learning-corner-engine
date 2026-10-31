@@ -303,6 +303,7 @@ changed since.
 | `work_update(id, title, sources, revision)` | A new title, or the sources the work cites |
 | `work_add_edition(id, edition, text, revision)` | A pronunciation or translation. Empty text gives it an empty row for every row |
 | `work_update_edition(id, edition, label, scheme, source, revision)` | Who it is by, how it is written |
+| `work_move_edition(id, edition, position, revision)` | An edition to another place among the panes, counting from 1 |
 | `work_remove_edition_plan(id, edition)` / `work_remove_edition(…)` | What goes, then removing it. Never the original |
 | `work_write_row(id, edition, row, text, revision)` | One row of one edition. Line breaks become lines within the row; a repeated row writes all its repetitions |
 | `work_insert_row(id, row, revision)` | An empty row at that place in every edition |
