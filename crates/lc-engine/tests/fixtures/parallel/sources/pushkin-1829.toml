@@ -1,0 +1,12 @@
+id = "01M4P0B7Q8R9S0T1V2W3X4Y5ZA"
+type = "book"
+title = "Стихотворения"
+publisher = "Гослитиздат"
+
+[date]
+year = 1829
+
+[[contributors]]
+role = "author"
+family = "Пушкин"
+given = "Александр"

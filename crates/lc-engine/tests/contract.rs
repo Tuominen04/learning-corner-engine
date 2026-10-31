@@ -464,12 +464,9 @@ fn operations_from_later_milestones_are_named_and_unimplemented() {
     // so filling them in later is a body change rather than a shape change.
     let mut fixture = Fixture::populated();
 
-    // source_create and citation_format stood here until M1 filled them in, and backup_plan
-    // until M2 did, which is the point of the pattern: a body changed, and no client broke.
-    assert!(matches!(
-        fixture.engine().work_create(),
-        Err(Error::Unimplemented(_))
-    ));
+    // source_create and citation_format stood here until M1 filled them in, backup_plan until
+    // M2 and work_create until M3, which is the point of the pattern: a body changed, and no
+    // client broke.
     assert!(matches!(
         fixture.engine().map_read(),
         Err(Error::Unimplemented(_))

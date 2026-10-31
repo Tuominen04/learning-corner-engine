@@ -9,6 +9,7 @@ its index (`.plc/`) — a fixture itself is never written to, and holds no `.plc
 | `minimal` | `library.toml` and nothing else | An empty library opens clean, and takes its first topic and document |
 | `damaged` | A small library broken the ways people break them | Every broken file is named, the rest opens, and nothing is rewritten |
 | `v1` | A small library in the format as M1 ships it — **frozen** | That format still opens, and reads exactly as `v1-reading.txt` records |
+| `parallel` | Two works written by hand: *Я вас любил* in Russian, pronunciation, Finnish and English, with a deliberately empty row, a note, a repeated first line and an edition citing a source; and *Калинка*, its Finnish put out of line by a row added by hand | Works read as written, hand alignment survives the engine rewriting the files, and a misalignment is reported, not repaired |
 
 ## `damaged`
 

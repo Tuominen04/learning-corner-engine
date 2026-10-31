@@ -24,7 +24,8 @@ use crate::store::{Problem, Scan, Store};
 /// makes an existing library reindex itself the next time it is opened.
 ///
 /// 2: document bodies are indexed as readable text, with citation and link markers removed.
-const INDEX_VERSION: u32 = 2;
+/// 3: works, their editions and notes, and the sources they cite.
+const INDEX_VERSION: u32 = 3;
 
 const FILE: &str = "index.sqlite";
 
@@ -88,6 +89,7 @@ pub enum Kind {
     Topic,
     Document,
     Source,
+    Work,
 }
 
 impl Kind {
@@ -97,6 +99,7 @@ impl Kind {
             "topic" => Some(Kind::Topic),
             "document" => Some(Kind::Document),
             "source" => Some(Kind::Source),
+            "work" => Some(Kind::Work),
             _ => None,
         }
     }
@@ -106,6 +109,7 @@ impl Kind {
             Kind::Topic => "topic",
             Kind::Document => "document",
             Kind::Source => "source",
+            Kind::Work => "work",
         }
     }
 
@@ -114,6 +118,7 @@ impl Kind {
             "topic" => Ok(Kind::Topic),
             "document" => Ok(Kind::Document),
             "source" => Ok(Kind::Source),
+            "work" => Ok(Kind::Work),
             other => Err(Error::library(format!("unknown entity kind {other:?}"))),
         }
     }
@@ -324,6 +329,36 @@ impl Index {
             )?;
         }
 
+        for found in &scan.works {
+            let work = &found.work;
+            let id = work.manifest.id;
+            if !inserted.insert(id) {
+                continue;
+            }
+            let text = work.searchable_text();
+            insert_entity(
+                &tx,
+                id,
+                Kind::Work,
+                &found.path,
+                &work.manifest.title,
+                &work.manifest.created.to_string(),
+                &digest(text.as_bytes()),
+                &text,
+                &found.path,
+                found.revision.token(),
+            )?;
+            // A work citing a source is recorded beside the documents that do, so a source
+            // knows everything leaning on it.
+            for source in work.cited_sources() {
+                tx.execute(
+                    "INSERT OR IGNORE INTO citation (document_id, source_id) VALUES (?1, ?2)",
+                    params![id.to_string(), source.to_string()],
+                )
+                .map_err(sql)?;
+            }
+        }
+
         for problem in &scan.problems {
             tx.execute(
                 "INSERT INTO problem (path, message, revision) VALUES (?1, ?2, ?3)",
@@ -392,6 +427,57 @@ impl Index {
             .map_err(sql)?;
         }
 
+        tx.commit().map_err(sql)
+    }
+
+    /// Refresh one work's rows in place: its entry, its words, the sources it cites and its
+    /// problems. The hot path for a work, as [`Index::upsert_document`] is for a document.
+    pub fn upsert_work(&mut self, found: &crate::store::FoundWork) -> Result<()> {
+        let work = &found.work;
+        let id = work.manifest.id.to_string();
+        let path = found.path.display().to_string();
+        let tx = self.conn.transaction().map_err(sql)?;
+        for (table, column) in [
+            ("entity", "id"),
+            ("entity_fts", "id"),
+            ("citation", "document_id"),
+        ] {
+            tx.execute(
+                &format!("DELETE FROM {table} WHERE {column} = ?1"),
+                params![id],
+            )
+            .map_err(sql)?;
+        }
+        tx.execute("DELETE FROM problem WHERE path = ?1", params![path])
+            .map_err(sql)?;
+
+        let text = work.searchable_text();
+        insert_entity(
+            &tx,
+            work.manifest.id,
+            Kind::Work,
+            &found.path,
+            &work.manifest.title,
+            &work.manifest.created.to_string(),
+            &digest(text.as_bytes()),
+            &text,
+            &found.path,
+            found.revision.token(),
+        )?;
+        for source in work.cited_sources() {
+            tx.execute(
+                "INSERT OR IGNORE INTO citation (document_id, source_id) VALUES (?1, ?2)",
+                params![id, source.to_string()],
+            )
+            .map_err(sql)?;
+        }
+        for message in crate::store::work_problems(work) {
+            tx.execute(
+                "INSERT INTO problem (path, message, revision) VALUES (?1, ?2, '')",
+                params![path, message],
+            )
+            .map_err(sql)?;
+        }
         tx.commit().map_err(sql)
     }
 
@@ -529,7 +615,8 @@ impl Index {
             .collect()
     }
 
-    /// Documents citing a given source, derived from `[^cite:…]` and never stored.
+    /// Documents and works citing a given source, derived from `[^cite:…]` and from works'
+    /// `sources`, and never stored.
     pub fn citing_documents(&self, source: Id) -> Result<Vec<Id>> {
         let mut stmt = self
             .conn
