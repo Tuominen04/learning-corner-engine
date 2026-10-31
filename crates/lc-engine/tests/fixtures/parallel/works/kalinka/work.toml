@@ -1,0 +1,16 @@
+id = "01M4P0E1F2G3H4J5K6M7N8P9QA"
+title = "Калинка"
+unit = "line"
+created = 2026-10-31T09:20:00Z
+
+[[editions]]
+id = "01M4P0F1G2H3J4K5M6N7P8Q9RA"
+file = "original.txt"
+kind = "original"
+language = "ru"
+
+[[editions]]
+id = "01M4P0F1G2H3J4K5M6N7P8Q9RB"
+file = "translation.fi.txt"
+kind = "translation"
+language = "fi"

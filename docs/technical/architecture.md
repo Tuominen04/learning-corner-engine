@@ -1,7 +1,7 @@
 # Architecture
 
 > **Audience:** People changing the engine
-> **Status:** In progress — M1 implemented
+> **Status:** In progress — M3 implemented
 > **Last reviewed:** 2026-10-02
 
 How this crate is put together, and the rules that keep it that way. What it is *required* to do
@@ -42,6 +42,7 @@ api                     Engine — what a client calls
 | `index` | Tables, full-text search, incremental update, rebuild |
 | `citation` | Sources, the library-wide disambiguation pass, and the APA 7 formatters |
 | `export` | A document as somebody else reads it: one model read from the body, a writer per format |
+| `works` | Parallel texts: edition files and dividing text as pure functions, `work.toml`, and the row operations that keep editions lined up |
 | `backup` | Back up, bring back and restore: the scan, the per-drive record, the comparison table as a pure function, and the apply that keeps what it replaces |
 | `api` | `Engine`: the operations, and conversion into what a client sees |
 

@@ -21,6 +21,7 @@ pub mod library;
 pub mod model;
 pub mod store;
 pub mod timestamp;
+pub mod works;
 
 pub use api::Engine;
 pub use error::{Error, Result};

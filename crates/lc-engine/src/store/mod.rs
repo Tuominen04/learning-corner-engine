@@ -19,6 +19,7 @@ use crate::id::Id;
 use crate::library::Library;
 use crate::model::{document, frontmatter, topic, Document, Topic};
 use crate::timestamp::Timestamp;
+use crate::works::{self, Work, WorkRevision, WORKS_DIR};
 
 /// The directory holding all root topics.
 pub const TOPICS_DIR: &str = "topics";
@@ -133,7 +134,16 @@ pub struct Scan {
     pub topics: Vec<Found<Topic>>,
     pub documents: Vec<Found<Document>>,
     pub sources: Vec<Found<crate::citation::Source>>,
+    pub works: Vec<FoundWork>,
     pub problems: Vec<Problem>,
+}
+
+/// A work found by a scan: its folder, relative to the library root, and its revision.
+#[derive(Debug, Clone)]
+pub struct FoundWork {
+    pub work: Work,
+    pub path: PathBuf,
+    pub revision: WorkRevision,
 }
 
 pub struct Store {
@@ -412,6 +422,9 @@ impl Store {
         if self.root.join(SOURCES_DIR).exists() {
             self.walk_sources(&mut scan)?;
         }
+        if self.root.join(WORKS_DIR).exists() {
+            self.walk_works(&mut scan)?;
+        }
         detect_duplicate_ids(&mut scan);
         Ok(scan)
     }
@@ -429,7 +442,62 @@ impl Store {
         if self.root.join(SOURCES_DIR).exists() {
             self.walk_signature(&PathBuf::from(SOURCES_DIR), &mut out)?;
         }
+        for dir in self.work_dirs()? {
+            out.insert(
+                dir.clone(),
+                works::revision(&self.root, &dir)?.token().to_string(),
+            );
+        }
         Ok(out)
+    }
+
+    /// Every folder in `works/` holding a `work.toml`, in name order.
+    pub fn work_dirs(&self) -> Result<Vec<PathBuf>> {
+        let absolute = self.absolute(Path::new(WORKS_DIR));
+        if !absolute.exists() {
+            return Ok(Vec::new());
+        }
+        let mut dirs = Vec::new();
+        for entry in fs::read_dir(&absolute).ctx(format!("listing {}", absolute.display()))? {
+            let entry = entry.ctx(format!("listing {}", absolute.display()))?;
+            let relative = PathBuf::from(WORKS_DIR).join(entry.file_name());
+            if entry.file_type().ctx("reading a directory entry")?.is_dir()
+                && self.absolute(&relative).join(works::MANIFEST).exists()
+            {
+                dirs.push(relative);
+            }
+        }
+        dirs.sort();
+        Ok(dirs)
+    }
+
+    fn walk_works(&self, scan: &mut Scan) -> Result<()> {
+        for dir in self.work_dirs()? {
+            match works::read(&self.root, &dir) {
+                Ok((work, revision)) => {
+                    for problem in work_problems(&work) {
+                        scan.problems.push(Problem {
+                            path: dir.clone(),
+                            message: problem,
+                            revision: None,
+                        });
+                    }
+                    scan.works.push(FoundWork {
+                        work,
+                        path: dir,
+                        revision,
+                    });
+                }
+                Err(e) => scan.problems.push(Problem {
+                    message: e.to_string(),
+                    revision: works::revision(&self.root, &dir)
+                        .ok()
+                        .map(|r| r.token().to_string()),
+                    path: dir,
+                }),
+            }
+        }
+        Ok(())
     }
 
     fn walk_signature(&self, dir: &Path, out: &mut BTreeMap<PathBuf, String>) -> Result<()> {
@@ -546,6 +614,11 @@ fn detect_duplicate_ids(scan: &mut Scan) {
             scan.documents
                 .iter()
                 .map(|f| (f.entity.id(), f.path.clone())),
+        )
+        .chain(
+            scan.works
+                .iter()
+                .map(|f| (f.work.manifest.id, f.path.clone())),
         );
 
     for (id, path) in all {
@@ -564,6 +637,36 @@ fn detect_duplicate_ids(scan: &mut Scan) {
     }
 
     scan.problems.extend(problems);
+}
+
+/// What is wrong with a work that still reads: a missing edition file, an edition out of line
+/// with the original, a repeat that no longer matches.
+pub(crate) fn work_problems(work: &Work) -> Vec<String> {
+    let mut out = Vec::new();
+    for id in &work.missing {
+        if let Some(e) = work.manifest.editions.iter().find(|e| e.id == *id) {
+            out.push(format!(
+                "the file for {}, {}, is missing",
+                works::describe(e),
+                e.file
+            ));
+        }
+    }
+    for m in work.misalignments() {
+        if work.missing.contains(&m.edition) {
+            continue;
+        }
+        if let Some(e) = work.manifest.editions.iter().find(|e| e.id == m.edition) {
+            out.push(format!(
+                "{} has {} rows and the original has {}, so they do not line up",
+                works::describe(e),
+                m.rows,
+                m.original_rows
+            ));
+        }
+    }
+    out.extend(work.repeat_problems());
+    out
 }
 
 fn revision_token(path: &Path) -> Option<String> {

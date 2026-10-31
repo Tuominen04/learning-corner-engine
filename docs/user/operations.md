@@ -1,7 +1,7 @@
 # Operations
 
 > **Audience:** People calling the engine from a client
-> **Status:** In progress — M2 implemented
+> **Status:** In progress — M3 implemented
 > **Last reviewed:** 2026-10-19
 
 Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
@@ -150,8 +150,9 @@ locator kind nobody recognises stays visible rather than being guessed at as a p
 | `source_update(source)` | Replaces it. Returns what it still lacks |
 | `source_list()` | Every source, already in reference-list order |
 | `source_delete_plan(id)` | The documents that cite it — ask before deleting, never after |
-| `source_delete(id)` | Removes it |
-| `source_citing_documents(id)` | Who leans on this. The call you want when a study is retracted |
+| `source_delete(id)` | Removes it, and takes it off every work that cited it |
+| `source_citing_documents(id)` | The documents that lean on this. The call you want when a study is retracted |
+| `source_citing_works(id)` | The works that cite it, as the work's source or an edition's |
 | `source_required_fields(type)` | What APA 7 needs for that kind of source |
 
 A source short of a required field is **saved and reported**, never refused. Somebody who
@@ -285,13 +286,53 @@ where. A file whose digest is no longer what the plan saw stops the apply with `
 was done stays done, and a fresh plan shows what is left. Bringing back into the library that is
 open means closing it first.
 
+## Works
+
+A text read beside its other versions: the original, how it is said, what it means. The rules
+are the specification's, in
+[Parallel text model](https://github.com/Tuominen04/learning-corner/blob/main/docs/technical/parallel-text-model.md).
+Rows count from 1, in the original; an edition is named by its id. Every change takes the
+`WorkRevision` from the last read and is refused with `Conflict` if any of the work's files
+changed since.
+
+| Call | Does |
+| --- | --- |
+| `work_list()` | Every work: title, its editions' languages, and whether it is out of line |
+| `work_create(title, unit, text, language, source)` | A new work; its original divided by `unit` (`Line`, `Sentence`, `Paragraph`) |
+| `work_read(id, editions)` | The work with its rows, notes, repeats and misalignments — all editions when `editions` is empty |
+| `work_update(id, title, sources, revision)` | A new title, or the sources the work cites |
+| `work_add_edition(id, edition, text, revision)` | A pronunciation or translation. Empty text gives it an empty row for every row |
+| `work_update_edition(id, edition, label, scheme, source, revision)` | Who it is by, how it is written |
+| `work_move_edition(id, edition, position, revision)` | An edition to another place among the panes, counting from 1 |
+| `work_remove_edition_plan(id, edition)` / `work_remove_edition(…)` | What goes, then removing it. Never the original |
+| `work_write_row(id, edition, row, text, revision)` | One row of one edition. Line breaks become lines within the row; a repeated row writes all its repetitions |
+| `work_insert_row(id, row, revision)` | An empty row at that place in every edition |
+| `work_remove_row(id, edition, row, revision)` | The row out of every edition — refused while another edition has text there, or the row has a note |
+| `work_mark_empty(…)` / `work_join(…)` / `work_split(…)` | One edition only: an empty row, a row joined to the one above, a row split at a line |
+| `work_set_repeat(id, row, of, revision)` | The row is the same text as an earlier one; answers with how many rows share it |
+| `work_set_note(id, row, text, revision)` | A note on a row; empty text removes it |
+| `work_resegment_plan(id, unit)` / `work_resegment(plan)` | Dividing again: what changes, then doing it. Notes it cannot place are kept under `.conflicts/` |
+| `work_delete_plan(id)` / `work_delete(id)` | What goes, then the whole folder |
+
+```rust
+let work = engine.work_create("Я вас любил", Unit::Line, poem, "ru", None)?;
+let work = engine.work_add_edition(work.id, finnish, "", &work.revision)?;
+let fi = work.editions[1].id;
+let work = engine.work_write_row(work.id, fi, 1, "Teitä rakastin", &work.revision)?;
+assert!(work.misalignments.is_empty());
+```
+
+An edition whose row count differs from the original's — after a join or split, or a hand edit
+— is listed in `misalignments` and under the library's problems. Where the texts stop
+corresponding is not something the engine can know, so it never shifts a line to make the
+counts agree.
+
 ## Later milestones
 
 These exist and return `Unimplemented`:
 
 | Call | Arrives in |
 | --- | --- |
-| `work_create` | M3 — parallel texts |
 | `map_read` | M4 — mind maps |
 
 ---

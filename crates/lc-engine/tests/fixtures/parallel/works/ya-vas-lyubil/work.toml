@@ -1,0 +1,40 @@
+id = "01M4P0C1D2E3F4G5H6J7K8M9NA"
+title = "Я вас любил"
+unit = "line"
+created = 2026-10-31T09:10:00Z
+sources = []
+
+[[editions]]
+id = "01M4P0D1E2F3G4H5J6K7M8N9PA"
+file = "original.txt"
+kind = "original"
+language = "ru"
+source = "01M4P0B7Q8R9S0T1V2W3X4Y5ZA"
+
+[[editions]]
+id = "01M4P0D1E2F3G4H5J6K7M8N9PB"
+file = "pronunciation.txt"
+kind = "pronunciation"
+language = "ru"
+scheme = "bgn-pcgn"
+
+[[editions]]
+id = "01M4P0D1E2F3G4H5J6K7M8N9PC"
+file = "translation.fi.txt"
+kind = "translation"
+language = "fi"
+label = "Oma käännös"
+
+[[editions]]
+id = "01M4P0D1E2F3G4H5J6K7M8N9PD"
+file = "translation.en.txt"
+kind = "translation"
+language = "en"
+
+[[notes]]
+row = 2
+text = "угасла — perfective past of угаснуть, to die out."
+
+[[repeats]]
+row = 9
+of = 1

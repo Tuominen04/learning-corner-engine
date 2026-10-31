@@ -8,6 +8,12 @@
 //! this crate's business, and keeping it that way is what lets files be renamed and moved
 //! without anything else having to know.
 
+mod works;
+
+pub use works::{
+    EditionContents, EditionView, ResegmentPlan, Resegmented, WorkContents, WorkSummary, WorkView,
+};
+
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -112,6 +118,7 @@ pub struct Status {
     pub name: String,
     pub topics: usize,
     pub documents: usize,
+    pub works: usize,
     pub problems: Vec<Problem>,
     pub writable: bool,
 }
@@ -213,6 +220,7 @@ impl Engine {
             name: self.library.name().to_string(),
             topics: self.index.entries(Kind::Topic)?.len(),
             documents: self.index.entries(Kind::Document)?.len(),
+            works: self.index.entries(Kind::Work)?.len(),
             problems: self.index.problems()?,
             writable: self.library.is_writable(),
         })
@@ -777,6 +785,9 @@ impl Engine {
         if let Some(name) = self.store.read_source(&entry.path)?.entity.file {
             self.store.remove_source_file(&name)?;
         }
+        // Works citing it stop citing it. Documents keep their citation markers, which then
+        // show as unresolved: those are words somebody wrote, and a work's list is not.
+        self.forget_source_in_works(id)?;
         self.store.remove_source(&entry.path)?;
         self.index.rebuild(&self.store)?;
         Ok(())
@@ -787,16 +798,18 @@ impl Engine {
     /// The feature you are glad of on a bad day: a study is retracted, and this is how you
     /// find the eleven places you leaned on it.
     pub fn source_citing_documents(&self, id: Id) -> Result<Vec<DocumentSummary>> {
-        self.index
-            .citing_documents(id)?
-            .into_iter()
-            .map(|doc| {
-                self.index.resolve(doc).map(|e| DocumentSummary {
+        let mut out = Vec::new();
+        for citing in self.index.citing_documents(id)? {
+            // Works cite sources too, and are asked for with `source_citing_works`.
+            let e = self.index.resolve(citing)?;
+            if e.kind == Kind::Document {
+                out.push(DocumentSummary {
                     id: e.id,
                     title: e.title,
-                })
-            })
-            .collect()
+                });
+            }
+        }
+        Ok(out)
     }
 
     /// Keep a file with a source, so the source has its paper for good.
@@ -1064,10 +1077,6 @@ impl Engine {
     }
 
     // ---- later milestones ------------------------------------------------------
-
-    pub fn work_create(&mut self) -> Result<()> {
-        Err(Error::Unimplemented("work.create"))
-    }
 
     pub fn map_read(&self) -> Result<()> {
         Err(Error::Unimplemented("map.read"))

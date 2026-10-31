@@ -72,7 +72,10 @@ plain text.
 
 **M2 — backup and restore**, in the engine: back up to a drive, bring the drive's changes back,
 restore into an empty folder — two-phase, resumable, and keeping every version it replaces.
-Parallel texts are M3, mind maps M4.
+
+**M3 — parallel texts**, in the engine: works with an original, pronunciations and
+translations lined up row by row, divided by line, sentence or paragraph; repeated rows, notes,
+sources, and misalignment shown rather than hidden. Mind maps are M4.
 
 Operations belonging to later milestones already exist and report themselves as unimplemented,
 so a client can be written against the whole surface now.
