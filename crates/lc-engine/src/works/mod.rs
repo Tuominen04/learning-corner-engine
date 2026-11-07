@@ -39,7 +39,8 @@ pub enum EditionKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Edition {
     pub id: Id,
-    /// The engine's business: made once from the kind and language, never renamed.
+    /// The engine's business: made from the kind and language, and renamed only when the
+    /// language is changed — so a file never says one language and holds another.
     pub file: String,
     pub kind: EditionKind,
     /// BCP 47.
@@ -277,22 +278,7 @@ impl Work {
                 "only a pronunciation is written in a scheme",
             ));
         }
-        let stem = match new.kind {
-            EditionKind::Pronunciation => "pronunciation".to_string(),
-            _ => format!("translation.{}", new.language),
-        };
-        let taken: std::collections::HashSet<String> = self
-            .manifest
-            .editions
-            .iter()
-            .map(|e| e.file.trim_end_matches(".txt").to_string())
-            .collect();
-        let mut file = stem.clone();
-        let mut n = 2;
-        while taken.contains(&file) {
-            file = format!("{stem}-{n}");
-            n += 1;
-        }
+        let file = self.file_for(new.kind, &new.language, None);
         let cells = if text.trim().is_empty() {
             vec![Cell::empty(); self.rows()]
         } else {
@@ -301,7 +287,7 @@ impl Work {
         let id = Id::new();
         self.manifest.editions.push(Edition {
             id,
-            file: format!("{file}.txt"),
+            file,
             kind: new.kind,
             language: new.language,
             scheme,
@@ -312,26 +298,69 @@ impl Work {
         Ok(id)
     }
 
+    /// Change an edition's details: its language, label, scheme and source.
+    ///
+    /// A translation's file is named after its language, so a new language renames it. The
+    /// file it had is returned, for the caller to remove once the work is written under the
+    /// new name. The rows are not divided again: the text is the same text, now said to be in
+    /// another language.
     pub fn update_edition(
         &mut self,
         edition: Id,
+        language: String,
         label: Option<String>,
         scheme: Option<String>,
         source: Option<Id>,
-    ) -> Result<()> {
+    ) -> Result<Option<String>> {
         let i = self.edition(edition)?;
-        let e = &mut self.manifest.editions[i];
+        check_language(&language)?;
+        let kind = self.manifest.editions[i].kind;
         let scheme = clean(scheme);
-        if scheme.is_some() && e.kind != EditionKind::Pronunciation {
+        if scheme.is_some() && kind != EditionKind::Pronunciation {
             return Err(Error::invalid(
                 "scheme",
                 "only a pronunciation is written in a scheme",
             ));
         }
+        let renamed = if language != self.manifest.editions[i].language {
+            let file = self.file_for(kind, &language, Some(i));
+            let old = std::mem::replace(&mut self.manifest.editions[i].file, file);
+            (old != self.manifest.editions[i].file).then_some(old)
+        } else {
+            None
+        };
+        let e = &mut self.manifest.editions[i];
+        e.language = language;
         e.label = clean(label);
         e.scheme = scheme;
         e.source = source;
-        Ok(())
+        Ok(renamed)
+    }
+
+    /// The file for an edition of `kind` in `language`: `original.txt`, `pronunciation.txt`,
+    /// `translation.fi.txt`, with `-2`, `-3` added when another edition has the name.
+    /// `except` is the edition being renamed, whose own name is not in the way.
+    fn file_for(&self, kind: EditionKind, language: &str, except: Option<usize>) -> String {
+        let stem = match kind {
+            EditionKind::Original => "original".to_string(),
+            EditionKind::Pronunciation => "pronunciation".to_string(),
+            EditionKind::Translation => format!("translation.{language}"),
+        };
+        let taken: std::collections::HashSet<String> = self
+            .manifest
+            .editions
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| Some(*j) != except)
+            .map(|(_, e)| e.file.trim_end_matches(".txt").to_string())
+            .collect();
+        let mut file = stem.clone();
+        let mut n = 2;
+        while taken.contains(&file) {
+            file = format!("{stem}-{n}");
+            n += 1;
+        }
+        format!("{file}.txt")
     }
 
     /// Move an edition to `position` among the panes, counting from 1. The others keep their
@@ -1126,6 +1155,52 @@ mod tests {
             files,
             ["original.txt", "translation.fi.txt", "translation.fi-2.txt"]
         );
+    }
+
+    #[test]
+    fn a_new_language_renames_a_translation_and_nothing_else() {
+        let mut w = work("a");
+        fi(&mut w, "");
+        fi(&mut w, "");
+        let first = w.manifest.editions[1].id;
+        let second = w.manifest.editions[2].id;
+
+        // Into English: its file follows, and the old name is handed back to be removed.
+        let old = w
+            .update_edition(first, "en".into(), None, None, None)
+            .unwrap();
+        assert_eq!(old.as_deref(), Some("translation.fi.txt"));
+        assert_eq!(w.manifest.editions[1].file, "translation.en.txt");
+        assert_eq!(w.manifest.editions[1].language, "en");
+
+        // Into a language another edition already has: a name of its own.
+        let old = w
+            .update_edition(second, "en".into(), None, None, None)
+            .unwrap();
+        assert_eq!(old.as_deref(), Some("translation.fi-2.txt"));
+        assert_eq!(w.manifest.editions[2].file, "translation.en-2.txt");
+
+        // The same language again renames nothing.
+        let old = w
+            .update_edition(first, "en".into(), Some("Leino".into()), None, None)
+            .unwrap();
+        assert_eq!(old, None);
+        assert_eq!(w.manifest.editions[1].label.as_deref(), Some("Leino"));
+
+        // The original keeps its name whatever its language; rows are never divided again.
+        let original = w.manifest.editions[0].id;
+        let rows = w.cells[0].clone();
+        assert_eq!(
+            w.update_edition(original, "uk".into(), None, None, None)
+                .unwrap(),
+            None
+        );
+        assert_eq!(w.manifest.editions[0].file, "original.txt");
+        assert_eq!(w.cells[0], rows);
+
+        assert!(w
+            .update_edition(first, "../x".into(), None, None, None)
+            .is_err());
     }
 
     #[test]

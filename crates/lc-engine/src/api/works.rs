@@ -177,10 +177,15 @@ impl Engine {
             .map(|(view, ())| view)
     }
 
+    /// Change an edition's language, label, scheme or source. A translation given a new
+    /// language is renamed to match: written under its new name first, the old file removed
+    /// after, so an interruption leaves a stray file rather than a missing one.
+    #[allow(clippy::too_many_arguments)]
     pub fn work_update_edition(
         &mut self,
         id: Id,
         edition: Id,
+        language: impl Into<String>,
         label: Option<String>,
         scheme: Option<String>,
         source: Option<Id>,
@@ -189,10 +194,18 @@ impl Engine {
         if let Some(source) = source {
             self.expect(source, Kind::Source)?;
         }
-        self.change_work(id, revision, |w| {
-            w.update_edition(edition, label, scheme, source)
-        })
-        .map(|(view, ())| view)
+        let language = language.into().trim().to_string();
+        let entry = self.expect(id, Kind::Work)?;
+        let (view, old) = self.change_work(id, revision, |w| {
+            w.update_edition(edition, language, label, scheme, source)
+        })?;
+        let Some(old) = old else { return Ok(view) };
+        let path = self.store.root().join(&entry.path).join(&old);
+        if path.exists() {
+            atomic::remove(&path)?;
+        }
+        self.refresh_work(&entry.path)?;
+        self.work_view_at(&entry.path, &[]).or(Ok(view))
     }
 
     /// Move an edition to `position` among the panes, counting from 1.

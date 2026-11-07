@@ -2,7 +2,7 @@
 
 > **Audience:** People calling the engine from a client
 > **Status:** In progress — M3 implemented
-> **Last reviewed:** 2026-10-19
+> **Last reviewed:** 2026-11-07
 
 Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
 milestones already exist and return `Unimplemented`, so a client can be written against the whole
@@ -302,7 +302,7 @@ changed since.
 | `work_read(id, editions)` | The work with its rows, notes, repeats and misalignments — all editions when `editions` is empty |
 | `work_update(id, title, sources, revision)` | A new title, or the sources the work cites |
 | `work_add_edition(id, edition, text, revision)` | A pronunciation or translation. Empty text gives it an empty row for every row |
-| `work_update_edition(id, edition, label, scheme, source, revision)` | Who it is by, how it is written |
+| `work_update_edition(id, edition, language, label, scheme, source, revision)` | Its language, who it is by, how it is written. A translation given another language has its file renamed to match; its rows stay as they are |
 | `work_move_edition(id, edition, position, revision)` | An edition to another place among the panes, counting from 1 |
 | `work_remove_edition_plan(id, edition)` / `work_remove_edition(…)` | What goes, then removing it. Never the original |
 | `work_write_row(id, edition, row, text, revision)` | One row of one edition. Line breaks become lines within the row; a repeated row writes all its repetitions |
