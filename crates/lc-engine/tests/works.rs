@@ -422,6 +422,58 @@ fn removing_an_edition_shows_what_goes_and_the_original_stays() {
 }
 
 #[test]
+fn a_translation_given_another_language_is_renamed_to_match() {
+    let (_dir, mut engine) = library();
+    let view = poem(&mut engine);
+    let view = engine
+        .work_add_edition(
+            view.id,
+            translation("fi"),
+            "Here comes one\ntwo\nthree",
+            &view.revision,
+        )
+        .unwrap();
+    let edition = view.editions[1].id;
+    let view = engine
+        .work_update_edition(
+            view.id,
+            edition,
+            " en ",
+            Some("Mistake fixed".into()),
+            None,
+            None,
+            &view.revision,
+        )
+        .unwrap();
+
+    assert_eq!(view.editions[1].language, "en");
+    assert_eq!(view.editions[1].label.as_deref(), Some("Mistake fixed"));
+    assert_eq!(texts(&view, 1), ["Here comes one", "two", "three"]);
+    let dir = folder(&engine, &view);
+    assert!(dir.join("translation.en.txt").exists());
+    assert!(!dir.join("translation.fi.txt").exists());
+    assert!(fs::read_to_string(dir.join("work.toml"))
+        .unwrap()
+        .contains("translation.en.txt"));
+
+    // The revision it hands back is current: the next change goes through.
+    let view = engine
+        .work_write_row(view.id, edition, 2, "TWO", &view.revision)
+        .unwrap();
+    assert_eq!(texts(&view, 1)[1], "TWO");
+
+    // And reading the library afresh agrees.
+    let read = engine.work_read(view.id, &[]).unwrap();
+    assert_eq!(read, view);
+
+    // Not a language code: refused, nothing changed.
+    assert!(matches!(
+        engine.work_update_edition(view.id, edition, "", None, None, None, &view.revision),
+        Err(Error::Invalid { .. })
+    ));
+}
+
+#[test]
 fn deleting_a_work_shows_what_goes_first() {
     let (_dir, mut engine) = library();
     let view = poem(&mut engine);
