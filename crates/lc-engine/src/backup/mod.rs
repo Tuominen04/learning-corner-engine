@@ -115,6 +115,50 @@ pub struct Applied {
     pub recorded: usize,
 }
 
+/// The two versions of a file changed in both places, as text, to be compared line by line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BothTexts {
+    pub library: String,
+    pub drive: String,
+}
+
+/// The largest version [`texts`] reads, in bytes. Past this a line-by-line comparison is not
+/// something a person reads, and the answer is to open the two files.
+pub const MAX_TEXT: u64 = 1024 * 1024;
+
+/// Both versions of `path`, a file the plan asks about because it changed in both places.
+///
+/// Only such a path: anything else in or out of the plan is refused, so this reads nothing the
+/// person was not already being asked about. `None` when either version is not text, or is
+/// larger than [`MAX_TEXT`] — a picture or a PDF has no lines to compare.
+pub fn texts(plan: &Plan, path: &str) -> Result<Option<BothTexts>> {
+    let asked = plan.entries.iter().any(|e| {
+        e.path == path && e.action == Action::Ask && e.library.is_some() && e.drive.is_some()
+    });
+    if !asked {
+        return Err(Error::invalid(
+            "path",
+            "only a file changed in both places can be compared",
+        ));
+    }
+    let read = |root: &Path| -> Result<Option<String>> {
+        let file = scan::absolute(root, path);
+        let size = fs::metadata(&file)
+            .map_err(|e| Error::io(format!("reading {}", file.display()), e))?
+            .len();
+        if size > MAX_TEXT {
+            return Ok(None);
+        }
+        let bytes =
+            fs::read(&file).map_err(|e| Error::io(format!("reading {}", file.display()), e))?;
+        Ok(String::from_utf8(bytes).ok())
+    };
+    match (read(&plan.library_root)?, read(&plan.drive_root)?) {
+        (Some(library), Some(drive)) => Ok(Some(BothTexts { library, drive })),
+        _ => Ok(None),
+    }
+}
+
 /// How often the record is written during an apply, in files. A lost record costs, at worst,
 /// a question that need not have been asked — never a file — so it need not be per file.
 const RECORD_EVERY: usize = 64;

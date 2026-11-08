@@ -368,6 +368,44 @@ fn a_file_changed_in_both_is_asked_about_and_every_answer_holds() {
 }
 
 #[test]
+fn both_versions_of_a_file_changed_in_both_can_be_read_to_compare_and_nothing_else() {
+    let mut s = setup();
+    s.backup();
+    let root = s.root();
+    let path = "topics/protein/what-protein-is.md";
+    write(&s.drive, path, "Line one.\nThe drive's line.\n");
+    write(&root, path, "Line one.\nThe library's line.\n");
+    // A picture changed in both places too: no lines to compare.
+    fs::write(s.drive.join("sources/files/paper.pdf"), [0u8, 159, 1]).unwrap();
+    fs::write(root.join("sources/files/paper.pdf"), [0u8, 159, 2]).unwrap();
+    // And a file changed only on the drive, which nobody is asked about.
+    write(&s.drive, "topics/ruoka/mitä proteiini on.md", "Muutettu.");
+
+    let plan = Engine::restore_plan(&s.drive, &root).unwrap();
+    let both = Engine::backup_texts(&plan, path).unwrap().unwrap();
+    assert_eq!(both.library, "Line one.\nThe library's line.\n");
+    assert_eq!(both.drive, "Line one.\nThe drive's line.\n");
+
+    assert_eq!(
+        Engine::backup_texts(&plan, "sources/files/paper.pdf").unwrap(),
+        None
+    );
+    for not_asked in [
+        "topics/ruoka/mitä proteiini on.md",
+        "library.toml",
+        "../outside.md",
+    ] {
+        assert!(
+            matches!(
+                Engine::backup_texts(&plan, not_asked),
+                Err(Error::Invalid { .. })
+            ),
+            "{not_asked}"
+        );
+    }
+}
+
+#[test]
 fn keep_both_needs_a_file_on_both_sides() {
     let mut s = setup();
     s.backup();

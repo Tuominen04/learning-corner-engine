@@ -1106,6 +1106,12 @@ impl Engine {
         backup::plan_restore(drive, destination)
     }
 
+    /// Both versions of a file `plan` asks about because it changed in both places, as text;
+    /// `None` when either is not text or is too large to compare. Any other path is refused.
+    pub fn backup_texts(plan: &backup::Plan, path: &str) -> Result<Option<backup::BothTexts>> {
+        backup::texts(plan, path)
+    }
+
     /// Apply a restore plan, with an answer for every entry that asks.
     pub fn restore_apply(
         plan: &backup::Plan,

@@ -262,6 +262,7 @@ specification's, in
 | `backup_apply(plan, overwrite)` | Makes the drive exactly like the library. `overwrite` is required when `plan.drive_changes()` is not zero |
 | `Engine::restore_plan(drive, destination)` | What bringing `drive` back into `destination` would do — the library's own folder (a bring-back), or an empty one (a restore). Needs no open library |
 | `Engine::restore_apply(plan, answers)` | Brings the drive's changes in, with an `Answer` for every entry whose `action` is `Ask` |
+| `Engine::backup_texts(plan, path)` | Both versions of a file the plan asks about because it changed in both places, as text, to compare line by line. `None` when either is not text or is over 1 MiB; any other path is refused |
 
 A plan lists only the paths that differ. Each `Entry` names its `outcome` (a row of the
 comparison table), both sides' `digest`, `size` and `modified`, the `action` applying it takes,
