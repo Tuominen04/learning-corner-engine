@@ -112,7 +112,7 @@ fn a_document_that_moves_takes_its_pictures_with_it() {
 
     fixture
         .engine()
-        .document_move(ids.what_protein_is, ids.in_the_body)
+        .document_move(ids.what_protein_is, Some(ids.in_the_body), None)
         .unwrap();
 
     let moved = fixture
@@ -177,8 +177,10 @@ fn a_body_naming_a_picture_outside_its_folder_is_refused() {
     let outside = tempfile::tempdir().unwrap();
     let root = outside.path().join("library");
     let mut engine = Engine::create(&root, "Learning").unwrap();
-    let topic = engine.topic_create(None, "Protein").unwrap();
-    let doc = engine.document_create(topic, "What protein is").unwrap();
+    let topic = engine.document_create(None, "Protein").unwrap();
+    let doc = engine
+        .document_create(Some(topic), "What protein is")
+        .unwrap();
 
     let elsewhere = write_png(&outside.path().join("elsewhere.png"), "not ours");
     let view = engine.document_read(doc).unwrap();
@@ -186,12 +188,12 @@ fn a_body_naming_a_picture_outside_its_folder_is_refused() {
         .document_write(doc, "![Escape](../../../elsewhere.png)", view.revision)
         .unwrap();
 
-    let nested = engine.topic_create(Some(topic), "In the body").unwrap();
+    let nested = engine.document_create(Some(topic), "In the body").unwrap();
 
     // The move succeeds. A reference that was already broken must not strand the document as
     // well — refusing here would leave somebody unable to reorganise their own writing
     // because of one bad line they typed.
-    engine.document_move(doc, nested).unwrap();
+    engine.document_move(doc, Some(nested), None).unwrap();
 
     assert!(
         elsewhere.is_file(),
@@ -279,7 +281,7 @@ fn a_picture_that_moved_with_its_document_is_still_found() {
         .unwrap();
     fixture
         .engine()
-        .document_move(ids.what_protein_is, ids.in_the_body)
+        .document_move(ids.what_protein_is, Some(ids.in_the_body), None)
         .unwrap();
 
     let found = fixture
@@ -313,8 +315,10 @@ fn a_name_reaching_outside_the_folder_finds_nothing() {
     let outside = tempfile::tempdir().unwrap();
     let root = outside.path().join("library");
     let mut engine = Engine::create(&root, "Learning").unwrap();
-    let topic = engine.topic_create(None, "Protein").unwrap();
-    let doc = engine.document_create(topic, "What protein is").unwrap();
+    let topic = engine.document_create(None, "Protein").unwrap();
+    let doc = engine
+        .document_create(Some(topic), "What protein is")
+        .unwrap();
 
     // `topics/protein` is two folders below the root, so this is exactly the reach from the
     // document's own folder to the tempdir the library sits in.
@@ -359,7 +363,7 @@ fn a_picture_belongs_to_its_own_document() {
         .unwrap();
     fixture
         .engine()
-        .document_move(ids.what_protein_is, ids.in_the_body)
+        .document_move(ids.what_protein_is, Some(ids.in_the_body), None)
         .unwrap();
 
     // `types_of_protein` stayed in `topics/protein`; the picture went with the document that

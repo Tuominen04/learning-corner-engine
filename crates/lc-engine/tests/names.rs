@@ -161,7 +161,7 @@ fn a_renamed_topic_takes_its_folder_with_it() {
 
     fixture
         .engine()
-        .topic_rename(ids.protein, "Nutrition")
+        .document_rename(ids.protein, "Nutrition")
         .unwrap();
 
     assert!(
@@ -184,7 +184,7 @@ fn everything_under_a_renamed_topic_comes_with_it() {
 
     fixture
         .engine()
-        .topic_rename(ids.protein, "Nutrition")
+        .document_rename(ids.protein, "Nutrition")
         .unwrap();
 
     let nested = fixture.root().join("topics/nutrition/in-the-body");
@@ -195,10 +195,10 @@ fn everything_under_a_renamed_topic_comes_with_it() {
     assert_eq!(after.id, before.id);
 
     // And the tree still describes the library, rather than where it used to be.
-    let tree = fixture.engine().topic_tree().unwrap();
-    assert_eq!(tree[0].name, "Nutrition");
-    assert_eq!(tree[0].documents.len(), 2);
-    assert_eq!(tree[0].children[0].name, "In the body");
+    let tree = fixture.engine().page_tree().unwrap();
+    assert_eq!(tree[0].title, "Nutrition");
+    assert_eq!(tree[0].children.len(), 3);
+    assert_eq!(tree[0].children[2].title, "In the body");
 }
 
 #[test]
@@ -210,7 +210,7 @@ fn a_renamed_nested_topic_stays_under_its_parent() {
 
     fixture
         .engine()
-        .topic_rename(ids.in_the_body, "Around the body")
+        .document_rename(ids.in_the_body, "Around the body")
         .unwrap();
 
     assert!(fixture
@@ -219,10 +219,10 @@ fn a_renamed_nested_topic_stays_under_its_parent() {
         .is_dir());
     assert!(!fixture.root().join("topics/around-the-body").exists());
 
-    let tree = fixture.engine().topic_tree().unwrap();
-    assert_eq!(tree[0].name, "Protein");
-    assert_eq!(tree[0].children[0].name, "Around the body");
-    assert_eq!(tree[0].children[0].documents.len(), 1);
+    let tree = fixture.engine().page_tree().unwrap();
+    assert_eq!(tree[0].title, "Protein");
+    assert_eq!(tree[0].children[2].title, "Around the body");
+    assert_eq!(tree[0].children[2].children.len(), 1);
 }
 
 #[test]
@@ -256,7 +256,7 @@ fn a_picture_still_sits_beside_its_document_after_both_are_renamed() {
         .unwrap();
     fixture
         .engine()
-        .topic_rename(ids.protein, "Nutrition")
+        .document_rename(ids.protein, "Nutrition")
         .unwrap();
 
     let found = fixture
@@ -272,23 +272,27 @@ fn a_picture_still_sits_beside_its_document_after_both_are_renamed() {
 }
 
 #[test]
-fn a_renamed_topic_keeps_its_name_even_if_the_folder_cannot_be_moved() {
-    // The name is written before the folder moves, deliberately: a failure to move must not
-    // lose what the user just typed. This is the ordinary case, and it asserts the ordering by
-    // asserting what the topic says rather than only where it lives.
+fn a_renamed_page_says_its_new_name_inside_as_well_as_in_its_file_name() {
+    // The title is written before the file and folder move, deliberately: a failure to move
+    // must not lose what the user just typed. This is the ordinary case, and it asserts the
+    // ordering by asserting what the page says rather than only where it lives.
     let mut fixture = Fixture::populated();
     let ids = fixture.ids();
 
     fixture
         .engine()
-        .topic_rename(ids.protein, "Nutrition")
+        .document_rename(ids.protein, "Nutrition")
         .unwrap();
 
-    let toml = fs::read_to_string(fixture.root().join("topics/nutrition/topic.toml")).unwrap();
+    let page = fs::read_to_string(fixture.root().join("topics/nutrition.md")).unwrap();
     assert!(
-        toml.contains("Nutrition"),
-        "the folder moved but the topic did not say its new name: {toml}"
+        page.contains("Nutrition"),
+        "the file moved but the page did not say its new name: {page}"
     );
+    assert!(fixture
+        .root()
+        .join("topics/nutrition/in-the-body.md")
+        .is_file());
 }
 
 #[test]
@@ -304,7 +308,7 @@ fn names_survive_the_index_being_deleted() {
         .unwrap();
     fixture
         .engine()
-        .topic_rename(ids.protein, "Nutrition")
+        .document_rename(ids.protein, "Nutrition")
         .unwrap();
 
     fs::remove_dir_all(fixture.root().join(".plc")).unwrap();
@@ -315,8 +319,12 @@ fn names_survive_the_index_being_deleted() {
             .into_iter()
             .filter(|n| n.ends_with(".md"))
             .collect::<Vec<_>>(),
-        vec!["types-of-protein.md", "what-a-protein-really-is.md"]
+        vec![
+            "in-the-body.md",
+            "types-of-protein.md",
+            "what-a-protein-really-is.md"
+        ]
     );
-    let tree = fixture.engine().topic_tree().unwrap();
-    assert_eq!(tree[0].name, "Nutrition");
+    let tree = fixture.engine().page_tree().unwrap();
+    assert_eq!(tree[0].title, "Nutrition");
 }

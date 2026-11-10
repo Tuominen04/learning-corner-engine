@@ -24,13 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    // 1. Create a library with two nested topics and two documents.
+    // 1. Create a library with a page, a page under it, and two pages under those.
     let mut engine = Engine::create(&root, "Learning")?;
-    let protein = engine.topic_create(None, "Protein")?;
-    let in_the_body = engine.topic_create(Some(protein), "In the body")?;
+    let protein = engine.document_create(None, "Protein")?;
+    let in_the_body = engine.document_create(Some(protein), "In the body")?;
 
-    let what = engine.document_create(protein, "What protein is")?;
-    let used = engine.document_create(in_the_body, "How protein is used")?;
+    let what = engine.document_create(Some(protein), "What protein is")?;
+    let used = engine.document_create(Some(in_the_body), "How protein is used")?;
 
     let rev = engine.document_read(what)?.revision;
     engine.document_write(
@@ -45,10 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     drop(engine);
     let engine = Engine::open(&root)?;
     let status = engine.status()?;
-    println!(
-        "reopened: {} topics, {} documents",
-        status.topics, status.documents
-    );
+    println!("reopened: {} pages", status.documents);
     assert!(status.problems.is_empty());
 
     // 3. Backlinks are derived from the text, not stored.

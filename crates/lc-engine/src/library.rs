@@ -15,7 +15,10 @@ use crate::id::Id;
 use crate::timestamp::Timestamp;
 
 /// The storage format this build reads and writes.
-pub const FORMAT_VERSION: u32 = 1;
+///
+/// 2 since pages replaced topics (ADR 0009). A format 1 library is converted by
+/// [`crate::migrate::migrate`], after a copy of it is written beside it.
+pub const FORMAT_VERSION: u32 = 2;
 
 /// The manifest file at the root of every library.
 pub const MANIFEST: &str = "library.toml";
@@ -248,6 +251,18 @@ impl Library {
     }
 }
 
+/// Rewrite the format version in the `library.toml` at `root`, and nothing else in it.
+pub(crate) fn set_format_version(root: &Path, version: u32) -> Result<()> {
+    let file = root.join(MANIFEST);
+    let text = fs::read_to_string(&file).ctx(format!("reading {}", file.display()))?;
+    let mut manifest: Manifest = toml::from_str(&text)
+        .map_err(|e| Error::library(format!("{MANIFEST} is not readable: {e}")))?;
+    manifest.format_version = version;
+    let text = toml::to_string_pretty(&manifest)
+        .map_err(|e| Error::library(format!("cannot serialise {MANIFEST}: {e}")))?;
+    atomic::write(&file, &text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,7 +287,7 @@ mod tests {
         Library::create(dir.path(), "Learning").unwrap();
         let text = fs::read_to_string(dir.path().join(MANIFEST)).unwrap();
         assert!(text.contains("name = \"Learning\""), "{text}");
-        assert!(text.contains("format_version = 1"), "{text}");
+        assert!(text.contains("format_version = 2"), "{text}");
         assert!(
             text.contains("created = 2"),
             "created must be an unquoted TOML datetime: {text}"

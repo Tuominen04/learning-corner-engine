@@ -1,8 +1,9 @@
 //! The library on disk.
 //!
 //! Reading and writing entities, and walking the tree. The folder structure mirrors what the
-//! user sees: a topic is a directory holding `topic.toml`, its documents as `.md` files, and
-//! any nested topics as subdirectories.
+//! user sees: every page is a `.md` file, and a page's sub-pages are in a folder named like it,
+//! beside it — `protein.md` and `protein/` — which exists only while it has some. The order of
+//! the pages in a folder is the person's, in that folder's `.order` (ADR 0009).
 //!
 //! Identity is the ULID inside each file, never the path — so this module can rename and move
 //! freely, and nothing that references an entity has to be updated when it does.
@@ -17,12 +18,30 @@ use crate::atomic;
 use crate::error::{Error, IoContext, Result};
 use crate::id::Id;
 use crate::library::Library;
-use crate::model::{document, frontmatter, topic, Document, Topic};
+use crate::model::{document, frontmatter, Document};
 use crate::timestamp::Timestamp;
 use crate::works::{self, Work, WorkRevision, WORKS_DIR};
 
-/// The directory holding all root topics.
+/// The directory holding the top of the tree of pages.
+///
+/// Named for format 1, where it held topics, and kept: it is the root of the tree, and renaming
+/// it would move every file in every library for a word.
 pub const TOPICS_DIR: &str = "topics";
+
+/// The order of the pages in a folder: one file name without `.md` per line, top to bottom.
+pub const ORDER_FILE: &str = ".order";
+
+/// The folder holding a page's sub-pages: the page's path without `.md`.
+pub fn folder_of(page: &Path) -> PathBuf {
+    page.with_extension("")
+}
+
+/// The page a folder of sub-pages belongs to: the folder's path with `.md`.
+pub fn page_of(folder: &Path) -> PathBuf {
+    let mut name = folder.as_os_str().to_owned();
+    name.push(".md");
+    PathBuf::from(name)
+}
 
 /// The directory holding every source in the library.
 ///
@@ -131,7 +150,6 @@ pub struct Problem {
 /// Everything a full walk of the library found.
 #[derive(Debug, Default)]
 pub struct Scan {
-    pub topics: Vec<Found<Topic>>,
     pub documents: Vec<Found<Document>>,
     pub sources: Vec<Found<crate::citation::Source>>,
     pub works: Vec<FoundWork>,
@@ -165,24 +183,89 @@ impl Store {
         self.root.join(relative)
     }
 
-    // ---- topics ----------------------------------------------------------------
+    // ---- the order of pages ----------------------------------------------------
 
-    pub fn read_topic(&self, dir: &Path) -> Result<Found<Topic>> {
-        let manifest = self.absolute(dir).join(topic::MANIFEST);
-        let text = fs::read_to_string(&manifest).ctx(format!("reading {}", manifest.display()))?;
-        let entity: Topic = toml::from_str(&text)
-            .map_err(|e| Error::library(format!("{}/{}: {e}", dir.display(), topic::MANIFEST)))?;
-        Ok(Found {
-            entity,
-            path: dir.to_path_buf(),
-            revision: Revision::of(&manifest)?,
-        })
+    /// The names `.order` lists in `dir`, top to bottom; none if it has no `.order`.
+    ///
+    /// Read forgivingly, because it is a file a person may edit: blank lines and surrounding
+    /// spaces are nothing, and a name listed twice counts where it first appears.
+    pub fn order(&self, dir: &Path) -> Vec<String> {
+        let text = fs::read_to_string(self.absolute(dir).join(ORDER_FILE)).unwrap_or_default();
+        let mut seen = HashSet::new();
+        text.lines()
+            .map(str::trim)
+            .filter(|name| !name.is_empty() && seen.insert(name.to_string()))
+            .map(str::to_string)
+            .collect()
     }
 
-    pub fn write_topic(&self, dir: &Path, entity: &Topic) -> Result<()> {
-        let text = toml::to_string_pretty(entity)
-            .map_err(|e| Error::library(format!("cannot serialise topic: {e}")))?;
-        atomic::write(&self.absolute(dir).join(topic::MANIFEST), &text)
+    /// Write `names` as the order of `dir`. An empty order removes the file, and a folder that
+    /// is not there is left alone.
+    pub fn write_order(&self, dir: &Path, names: &[String]) -> Result<()> {
+        let folder = self.absolute(dir);
+        let file = folder.join(ORDER_FILE);
+        if names.is_empty() {
+            return if file.exists() {
+                atomic::remove(&file)
+            } else {
+                Ok(())
+            };
+        }
+        if !folder.is_dir() {
+            return Ok(());
+        }
+        let mut text = names.join("\n");
+        text.push('\n');
+        atomic::write(&file, &text)
+    }
+
+    /// The pages directly in `dir`, as file names without `.md`, in the person's order: those
+    /// `.order` lists, as it lists them, then the rest by `title_of`, which names each one.
+    ///
+    /// The list only ever orders what is there. A name on it with no page is skipped, and a
+    /// page made by hand and never listed still appears — so a stale `.order` can misplace a
+    /// page but never lose one.
+    pub fn ordered_pages(
+        &self,
+        dir: &Path,
+        title_of: impl Fn(&str) -> String,
+    ) -> Result<Vec<String>> {
+        let mut present: Vec<String> = self.pages_in(dir)?.into_iter().collect();
+        let listed = self.order(dir);
+        let mut out: Vec<String> = listed
+            .iter()
+            .filter(|name| present.contains(name))
+            .cloned()
+            .collect();
+        present.retain(|name| !out.contains(name));
+        present.sort_by_cached_key(|name| (title_of(name).to_lowercase(), name.clone()));
+        out.extend(present);
+        Ok(out)
+    }
+
+    /// File names without `.md` of the pages directly in `dir`.
+    fn pages_in(&self, dir: &Path) -> Result<Vec<String>> {
+        let absolute = self.absolute(dir);
+        if !absolute.is_dir() {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for entry in fs::read_dir(&absolute).ctx(format!("listing {}", absolute.display()))? {
+            let entry = entry.ctx(format!("listing {}", absolute.display()))?;
+            let path = Path::new(&entry.file_name()).to_path_buf();
+            if path.extension().and_then(|e| e.to_str()) == Some("md")
+                && entry
+                    .file_type()
+                    .ctx("reading a directory entry")?
+                    .is_file()
+            {
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    out.push(stem.to_string());
+                }
+            }
+        }
+        out.sort();
+        Ok(out)
     }
 
     // ---- documents -------------------------------------------------------------
@@ -510,13 +593,6 @@ impl Store {
             }
             let file_type = entry.file_type().ctx("reading a directory entry")?;
             if file_type.is_dir() {
-                let manifest = relative.join(topic::MANIFEST);
-                if self.absolute(&manifest).exists() {
-                    out.insert(
-                        manifest.clone(),
-                        Revision::of(&self.absolute(&manifest))?.token(),
-                    );
-                }
                 self.walk_signature(&relative, out)?;
             } else if relative.extension().and_then(|e| e.to_str()) == Some("md") {
                 out.insert(
@@ -572,17 +648,21 @@ impl Store {
 
             let file_type = entry.file_type().ctx("reading a directory entry")?;
             if file_type.is_dir() {
-                if self.absolute(&relative).join(topic::MANIFEST).exists() {
-                    match self.read_topic(&relative) {
-                        Ok(found) => scan.topics.push(found),
-                        Err(e) => scan.problems.push(Problem {
-                            path: relative.join(topic::MANIFEST),
-                            message: e.to_string(),
-                            revision: revision_token(
-                                &self.absolute(&relative.join(topic::MANIFEST)),
-                            ),
-                        }),
-                    }
+                // A folder of pages belongs to the page of its name beside it. One without —
+                // made by hand, or left behind by a page deleted outside the app — is said
+                // plainly, and its pages are still read: they are listed where the folder is.
+                if !self.absolute(&page_of(&relative)).is_file() && self.has_pages(&relative) {
+                    scan.problems.push(Problem {
+                        path: relative.clone(),
+                        message: format!(
+                            "a folder of pages with no page of its own beside it ({} is missing)",
+                            page_of(&relative)
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                        ),
+                        revision: None,
+                    });
                 }
                 self.walk(&relative, scan)?;
             } else if relative.extension().and_then(|e| e.to_str()) == Some("md") {
@@ -600,6 +680,23 @@ impl Store {
     }
 }
 
+impl Store {
+    /// Whether any page is anywhere under `dir`.
+    fn has_pages(&self, dir: &Path) -> bool {
+        let Ok(entries) = fs::read_dir(self.absolute(dir)) else {
+            return false;
+        };
+        entries.flatten().any(|entry| {
+            let path = dir.join(entry.file_name());
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                self.has_pages(&path)
+            } else {
+                path.extension().and_then(|e| e.to_str()) == Some("md")
+            }
+        })
+    }
+}
+
 /// Two files claiming the same identifier is a library error, not something to resolve
 /// silently — it usually means a user copied a file to duplicate it.
 fn detect_duplicate_ids(scan: &mut Scan) {
@@ -607,14 +704,9 @@ fn detect_duplicate_ids(scan: &mut Scan) {
     let mut problems = Vec::new();
 
     let all = scan
-        .topics
+        .documents
         .iter()
-        .map(|f| (f.entity.id, f.path.clone()))
-        .chain(
-            scan.documents
-                .iter()
-                .map(|f| (f.entity.id(), f.path.clone())),
-        )
+        .map(|f| (f.entity.id(), f.path.clone()))
         .chain(
             scan.works
                 .iter()

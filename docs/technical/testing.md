@@ -2,7 +2,7 @@
 
 > **Audience:** People changing the engine
 > **Status:** In progress — M1 implemented
-> **Last reviewed:** 2026-10-02
+> **Last reviewed:** 2026-11-10
 
 There is no server, no network, and one user. That removes whole categories of testing and
 concentrates the risk in one place: **the library on disk.**
@@ -58,7 +58,8 @@ say so — a guarantee can disappear without a single red build.
 | `tests/library.rs` | A library's name, and the folder that follows it |
 | `tests/names.rs` | Filenames that follow titles |
 | `tests/split.rs` | Splitting a document without cutting anything in half |
-| `tests/deleting.rs` | Deleting topics and documents, and what is kept |
+| `tests/deleting.rs` | Deleting pages, and what becomes of the pages under them |
+| `tests/migrate.rs` | Converting format 1 libraries written by hand: name clashes, empty topics, an unreadable `topic.toml`, a conversion run twice |
 | `tests/images.rs`, `tests/attachments.rs` | Pictures and papers copied into the library |
 | `tests/fixture/` | A small shared library — the protein example, with Finnish and Cyrillic text |
 | `tests/libraries.rs`, `tests/fixtures/` | Real libraries checked in as folders: `minimal`, `damaged`, and `v1`, frozen |

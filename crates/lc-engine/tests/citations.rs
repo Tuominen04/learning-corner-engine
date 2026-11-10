@@ -793,8 +793,10 @@ fn citing_a_source_from_a_document_builds_its_reference_list() {
     let uncited = article("Something else entirely", 2019, vec![author("Aho", "Ari")]);
     engine.source_create(uncited).unwrap();
 
-    let topic = engine.topic_create(None, "Protein").unwrap();
-    let doc = engine.document_create(topic, "What protein is").unwrap();
+    let topic = engine.document_create(None, "Protein").unwrap();
+    let doc = engine
+        .document_create(Some(topic), "What protein is")
+        .unwrap();
     let revision = engine.document_read(doc).unwrap().revision;
     engine
         .document_write(
@@ -821,9 +823,9 @@ fn a_source_knows_which_documents_lean_on_it() {
         .source_create(article("Protein", 2021, vec![author("Nieminen", "Anna")]))
         .unwrap();
 
-    let topic = engine.topic_create(None, "Protein").unwrap();
+    let topic = engine.document_create(None, "Protein").unwrap();
     for title in ["First", "Second"] {
-        let doc = engine.document_create(topic, title).unwrap();
+        let doc = engine.document_create(Some(topic), title).unwrap();
         let revision = engine.document_read(doc).unwrap().revision;
         engine
             .document_write(doc, format!("Claimed.[^cite:{source}]"), revision)
@@ -1028,8 +1030,10 @@ fn a_narrative_citation_reads_differently_from_a_parenthetical_one() {
         ))
         .unwrap();
 
-    let topic = engine.topic_create(None, "Protein").unwrap();
-    let doc = engine.document_create(topic, "What protein is").unwrap();
+    let topic = engine.document_create(None, "Protein").unwrap();
+    let doc = engine
+        .document_create(Some(topic), "What protein is")
+        .unwrap();
     let revision = engine.document_read(doc).unwrap().revision;
     engine
         .document_write(
@@ -1133,8 +1137,8 @@ fn a_document_citing_one_source_eleven_times_lists_it_once() {
         .source_create(article("Once", 2021, vec![author("Aho", "Ari")]))
         .unwrap();
 
-    let topic = engine.topic_create(None, "Protein").unwrap();
-    let doc = engine.document_create(topic, "Repetitive").unwrap();
+    let topic = engine.document_create(None, "Protein").unwrap();
+    let doc = engine.document_create(Some(topic), "Repetitive").unwrap();
     let revision = engine.document_read(doc).unwrap().revision;
     let body = (0..11)
         .map(|n| format!("Point {n}.[^cite:{id}@{n}]"))

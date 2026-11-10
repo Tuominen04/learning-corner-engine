@@ -1,8 +1,8 @@
 # Operations
 
 > **Audience:** People calling the engine from a client
-> **Status:** In progress — M3 implemented
-> **Last reviewed:** 2026-11-07
+> **Status:** In progress — M3 and pages (format 2) implemented
+> **Last reviewed:** 2026-11-10
 
 Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
 milestones already exist and return `Unimplemented`, so a client can be written against the whole
@@ -22,61 +22,66 @@ Four rules hold everywhere:
 | Call | Does |
 | --- | --- |
 | `Engine::create(path, name)` | Creates a library in a folder that does not hold one |
-| `Engine::open(path)` | Opens an existing library for reading and writing |
+| `Engine::open(path)` | Opens an existing library for reading and writing; `MigrationRequired` for a format 1 library |
+| `Engine::migrate(path)` | Converts a format 1 library to format 2, after copying it whole beside itself; returns where the copy is |
 | `Library::open_read_only(path)` | Opens any library, including a newer format, without permitting writes |
-| `status()` | Counts, whether the library is writable, and any problems found |
+| `status()` | How many pages and works, whether the library is writable, and any problems found |
 | `rebuild_index()` | Discards the search index and rebuilds it from the files |
 
 `rebuild_index` is always safe. The index holds nothing that is not derivable from a scan, which
 is why a corrupt one is simply deleted rather than repaired.
 
-## Topics
+### Converting a format 1 library
 
-A topic is a subject. It holds documents, and it can hold other topics, as deep as you like.
+Format 1 had topics: folders holding `topic.toml` and no writing. `Engine::open` answers a
+format 1 library with `MigrationRequired`, and `Engine::migrate` converts it — only ever when the
+person has agreed. It:
 
-| Call | Does |
-| --- | --- |
-| `topic_create(parent, name)` | `None` as the parent makes a root topic |
-| `topic_rename(id, name)` | Renames it, and its folder with it. Links and documents are unaffected |
-| `topic_move(id, new_parent)` | `None` moves it to the root. Refuses to move a topic inside itself |
-| `topic_delete_plan(id)` | Everything anywhere below it: how many topics, and which documents |
-| `topic_delete(id, contents)` | `Delete` takes the whole subtree; `MoveUp` moves what is directly inside to the parent first |
-| `topic_tree()` | The whole tree, with each topic's documents |
+1. reads every `topic.toml` first, and refuses untouched, naming the file, if one cannot be read;
+2. copies the whole library to a folder beside it, `<folder>-format-1`, numbered if taken, the
+   index left out;
+3. makes every topic a page beside its folder, deepest first, keeping the topic's id, name and
+   date, with an empty body. A topic with nothing in it becomes a page with no folder; a document
+   already holding the name the page needs keeps it, and the page and its folder take the next;
+4. writes `.order` at every level in the order the tree showed before: a topic's documents
+   first, then its nested topics, each by file name;
+5. sets `format_version` to 2 — last, so a conversion that stopped part way leaves a library
+   that still says format 1 and is simply converted again.
 
-**Deleting a topic never decides what happens to the writing in it.** `contents` has no
-default, because an operation that picks for you is exactly the thing the contract has ruled
-out since M0. `topic_delete_plan` names every document anywhere below the topic rather than
-counting them — a list of titles is something a person recognises, and one of them being
-called "Thesis notes" is how a mistake gets caught before it happens. It reaches all the way
-down, because a topic with one empty-looking sub-topic can hold a year of writing two levels
-under it.
+Identity is the id inside each file, so no link, citation or back-reference changes.
 
-`MoveUp` moves only what is *directly* inside: a nested topic carries its own contents with
-it. A root topic with documents has nowhere to move them to — a document cannot sit outside a
-topic — and that is refused rather than answered by inventing a topic or by deleting them.
+## Pages
 
-**A folder is named after the topic in it, and stays that way.** Renaming a topic renames its
-folder, which is one `rename` — the same operation `topic_move` already relies on, and nothing
-inside the folder is touched or rewritten. The name is written into `topic.toml` first, so a
-move that fails leaves the topic knowing what it is called.
-
-The alternative was leaving the folder under its first name, which costs nothing to implement
-and quietly breaks the promise the whole layout exists for: a library is meant to be worth
-opening in a file manager, and a folder called `new-topic` holding a topic called "Protein" is
-not.
-
-## Documents
+Every entry in the tree is a **page**: a document, which can have pages under it, as deep as you
+like. A page's sub-pages live in a folder named like its file, beside it — `protein.md` and
+`protein/` — and that folder exists only while it has some. The order of the pages under one
+parent is the person's, kept in that folder's `.order` (ADR 0009 in the application's
+repository). Format 1's topics are gone; see [Converting a format 1 library](#converting-a-format-1-library).
 
 | Call | Does |
 | --- | --- |
-| `document_create(topic, title)` | An empty document in that topic |
-| `document_read(id)` | The document, with the revision needed to write it |
+| `page_tree()` | Every page, as a tree, each level in its order |
+| `document_create(parent, title)` | An empty page under `parent`, or at the top for `None`, at the end of its level |
+| `document_read(id)` | The page, with the page it is under (`parent`) and the revision needed to write it |
 | `document_write(id, body, revision)` | Replaces the body, or `Conflict` if the file changed |
-| `document_rename(id, title)` | Changes the title and the filename; the identifier and body are untouched |
-| `document_split(id, range, title, revision)` | Takes a byte range out into a new document beside this one, leaving `[[id]]` behind |
-| `document_move(id, topic)` | Moves it to another topic |
-| `document_delete(id)` | Removes it |
-| `backlinks(id)` | Documents linking here, derived from `[[id]]` in their text |
+| `document_rename(id, title)` | Changes the title, the filename and its folder's name; the identifier, body and place are untouched |
+| `document_split(id, range, title, revision)` | Takes a byte range out into a new page **under** this one, leaving `[[id]]` behind |
+| `document_move(id, parent, position)` | Moves it, with every page under it, to under `parent` at `position` (from 0) or the end. The same parent only reorders. Refuses to move a page under itself |
+| `document_delete_plan(id)` | Every page anywhere under it |
+| `document_delete(id, contents)` | `Delete` takes every page under it too; `MoveUp` moves the pages directly under it into its place first |
+| `backlinks(id)` | Pages linking here, derived from `[[id]]` in their text |
+
+**Deleting a page never decides what happens to the pages under it.** `contents` has no
+default. `document_delete_plan` names every page anywhere under it, not only the first level,
+because a page with one empty-looking sub-page can hold a year of writing two levels down.
+`MoveUp` moves only what is *directly* under it, in its order, into the place it had: a
+sub-page carries its own pages with it. A page at the top moves its pages up to the top.
+
+**`.order` only ever orders what is there.** It lists file names without `.md`, one per line.
+A page not on the list — made in a file manager — comes after the listed ones, by title; a name
+with no page is skipped. So a stale list can misplace a page but never lose one, and a person
+may edit it by hand. Absent, a level is in title order. Moving, creating, renaming and deleting
+keep it up to date.
 
 **A split is one operation because a crash in the middle of three would lose writing.** The
 new document is written first, so the worst outcome of a failure afterwards is the text
@@ -96,14 +101,16 @@ user can put a selection boundary inside, which makes them the dangerous ones. A
 *touching* a marker is not cutting it and is allowed.
 
 Citations and links inside the range move because they are *in* the text; there is no separate
-record of them to update. Pictures need nothing either: the new document is written beside the
-original, so the bare filenames its body carries still resolve.
+record of them to update. The pictures the taken text shows go with it into the new page's
+folder — copied rather than moved where the text left behind shows them too — so the bare
+filenames both bodies carry still resolve.
 
 **A document's file is named after its title, and follows it.** Identity is the ULID inside
 the file, so the `.md` can be moved freely: no citation, link, or open document breaks. The
 title is written first, at the name the file already has, so a failed move still leaves the
-document saying what it was just called. Pictures stay where they are — they sit beside the
-document in the same folder, which a rename does not change.
+document saying what it was just called. Its folder of sub-pages is renamed with it, so the two
+keep one name. Pictures stay where they are — they sit beside the page in the same folder, which
+a rename does not change.
 
 A name already in use gets the usual `-2` suffix, and a document renamed to the title it
 already has keeps its filename rather than acquiring one.

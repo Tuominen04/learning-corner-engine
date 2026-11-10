@@ -1,0 +1,17 @@
+id = "01M40V1RM87V1SJ71WQRVGX2DM"
+type = "web-page"
+title = "D-vitamiini"
+site = "THL"
+url = "https://thl.fi/d-vitamiini"
+
+[date]
+full = [
+    2021,
+    3,
+    4,
+]
+
+[[contributors]]
+role = "author"
+literal = "Terveyden ja hyvinvoinnin laitos"
+abbreviation = "THL"

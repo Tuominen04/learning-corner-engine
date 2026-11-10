@@ -28,8 +28,8 @@ use crate::export;
 use crate::id::Id;
 use crate::index::{Entry, Hit, Index, Kind, RebuildSummary};
 use crate::library::{Library, Manifest};
-use crate::model::{topic, Document, Topic};
-use crate::store::{slug, Problem, Revision, Store, SOURCES_DIR, TOPICS_DIR};
+use crate::model::Document;
+use crate::store::{folder_of, page_of, slug, Problem, Revision, Store, SOURCES_DIR, TOPICS_DIR};
 use crate::timestamp::Timestamp;
 
 /// An open library, with its store and index.
@@ -57,20 +57,20 @@ pub struct DocumentView {
     pub id: Id,
     pub title: String,
     pub body: String,
-    pub topic: Id,
+    /// The page this one is under; none for a page at the top of the tree.
+    pub parent: Option<Id>,
     pub created: Timestamp,
     pub modified: Timestamp,
     /// Pass back to [`Engine::document_write`]; a mismatch means the file changed underneath.
     pub revision: Revision,
 }
 
-/// One node of the topic tree.
+/// One page in the tree, with the pages under it in the person's order.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TopicNode {
+pub struct PageNode {
     pub id: Id,
-    pub name: String,
-    pub children: Vec<TopicNode>,
-    pub documents: Vec<DocumentSummary>,
+    pub title: String,
+    pub children: Vec<PageNode>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -79,28 +79,26 @@ pub struct DocumentSummary {
     pub title: String,
 }
 
-/// What a topic holds, so that deleting it can be a decision rather than a surprise.
+/// What is under a page, so that deleting it can be a decision rather than a surprise.
 ///
-/// The documents are named rather than counted. "3 documents" is a number somebody agrees to;
-/// a list of titles is a thing they recognise, and one of them being called "Thesis notes" is
-/// how a mistake gets caught before it happens.
+/// The pages are named rather than counted. "3 pages" is a number somebody agrees to; a list of
+/// titles is a thing they recognise, and one of them being called "Thesis notes" is how a
+/// mistake gets caught before it happens.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct TopicContents {
-    /// Topics nested anywhere below this one.
-    pub topics: usize,
-    /// Every document anywhere below this one, in path order.
-    pub documents: Vec<DocumentSummary>,
+pub struct PageContents {
+    /// Every page anywhere under this one, in path order.
+    pub pages: Vec<DocumentSummary>,
 }
 
-/// What becomes of what is inside a topic being deleted.
+/// What becomes of the pages under a page being deleted.
 ///
-/// There is no default. `backend-contract.md` has said since M0 that deleting a topic never
-/// deletes documents implicitly, and an operation that picks for you is exactly that.
+/// There is no default: deleting a page never deletes the pages under it implicitly, and an
+/// operation that picks for you is exactly that.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Contents {
-    /// Delete the topic and everything under it.
+    /// Delete the page and every page under it.
     Delete,
-    /// Move what is directly inside up to the topic's parent, then delete the empty topic.
+    /// Move the pages directly under it up to where it was, then delete it alone.
     MoveUp,
 }
 
@@ -116,7 +114,6 @@ pub struct Split {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Status {
     pub name: String,
-    pub topics: usize,
     pub documents: usize,
     pub works: usize,
     pub problems: Vec<Problem>,
@@ -151,6 +148,13 @@ impl Engine {
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
         let library = Library::open(root)?;
         Self::from_library(library)
+    }
+
+    /// Convert a format 1 library to this format, after copying it whole to a folder beside
+    /// it; then open it as usual. Returns where the copy is. What [`Engine::open`] answering
+    /// `MigrationRequired` asks for, and only ever on the person's say-so.
+    pub fn migrate(root: impl AsRef<Path>) -> Result<PathBuf> {
+        crate::migrate::migrate(root.as_ref())
     }
 
     fn from_library(library: Library) -> Result<Self> {
@@ -218,7 +222,6 @@ impl Engine {
     pub fn status(&self) -> Result<Status> {
         Ok(Status {
             name: self.library.name().to_string(),
-            topics: self.index.entries(Kind::Topic)?.len(),
             documents: self.index.entries(Kind::Document)?.len(),
             works: self.index.entries(Kind::Work)?.len(),
             problems: self.index.problems()?,
@@ -233,103 +236,107 @@ impl Engine {
         self.index.rebuild(&self.store)
     }
 
-    // ---- topics ----------------------------------------------------------------
+    // ---- the tree of pages ------------------------------------------------------
 
-    pub fn topic_create(&mut self, parent: Option<Id>, name: impl Into<String>) -> Result<Id> {
-        self.library.ensure_writable()?;
-        let name = name.into();
-        if name.trim().is_empty() {
-            return Err(Error::invalid("name", "a topic needs a name"));
-        }
-
-        let parent_dir = match parent {
-            Some(id) => self.topic_dir(id)?,
-            None => PathBuf::from(TOPICS_DIR),
-        };
-        let taken = self.store.taken_names(&parent_dir)?;
-        let dir = parent_dir.join(slug::unique(&name, &taken));
-
-        let entity = Topic::new(name);
-        let id = entity.id;
-        self.store.write_topic(&dir, &entity)?;
-        self.index.rebuild(&self.store)?;
-        Ok(id)
+    /// Every page, as a tree, each level in the person's order.
+    pub fn page_tree(&self) -> Result<Vec<PageNode>> {
+        let pages = self.index.entries(Kind::Document)?;
+        self.tree_under(Path::new(TOPICS_DIR), &pages)
     }
 
-    pub fn topic_rename(&mut self, id: Id, name: impl Into<String>) -> Result<()> {
-        self.library.ensure_writable()?;
-        let name = name.into();
-        if name.trim().is_empty() {
-            return Err(Error::invalid("name", "a topic needs a name"));
+    fn tree_under(&self, dir: &Path, pages: &[Entry]) -> Result<Vec<PageNode>> {
+        let here: Vec<&Entry> = pages
+            .iter()
+            .filter(|p| p.path.parent() == Some(dir))
+            .collect();
+        let mut out = Vec::new();
+        for stem in self.ordered(dir, pages)? {
+            let Some(page) = here.iter().find(|p| stem_of(&p.path) == stem) else {
+                continue;
+            };
+            let folder = folder_of(&page.path);
+            out.push(PageNode {
+                id: page.id,
+                title: page.title.clone(),
+                children: self.tree_under(&folder, pages)?,
+            });
         }
-
-        let dir = self.topic_dir(id)?;
-        let mut found = self.store.read_topic(&dir)?;
-        found.entity.name = name.clone();
-
-        // The name goes in first, in the folder that already exists. If the move below fails,
-        // the topic still knows what it is called — the old outcome, which was never wrong,
-        // only untidy.
-        self.store.write_topic(&dir, &found.entity)?;
-
-        // And then the folder follows it. Files are the source of truth, and a user is told
-        // they may open their library in a file manager — so a folder called `new-topic`
-        // holding a topic called "Protein" is this application failing its own promise, not a
-        // cosmetic detail. One `rename` moves the subtree, which is what `topic_move` already
-        // relies on; nothing inside is touched or rewritten.
-        let to = self.renamed_beside(&dir, &name)?;
-        if to != dir {
-            self.store.move_path(&dir, &to)?;
+        // A folder with no page of its own beside it: its pages are listed where it is, so
+        // nothing a person wrote disappears from the tree (the scan reports the folder).
+        for orphan in self.orphan_folders(dir, pages) {
+            out.extend(self.tree_under(&orphan, pages)?);
         }
-
-        // Every document underneath has a new path now, and the index is where paths live.
-        self.index.rebuild(&self.store)?;
-        Ok(())
+        Ok(out)
     }
 
-    pub fn topic_move(&mut self, id: Id, new_parent: Option<Id>) -> Result<()> {
-        self.library.ensure_writable()?;
-        let from = self.topic_dir(id)?;
-
-        let parent_dir = match new_parent {
-            Some(parent) => {
-                let parent_dir = self.topic_dir(parent)?;
-                if parent_dir.starts_with(&from) {
-                    return Err(Error::invalid(
-                        "parent",
-                        "a topic cannot be moved inside itself",
-                    ));
+    /// Folders directly in `dir` holding pages but with no page of their name beside them.
+    fn orphan_folders(&self, dir: &Path, pages: &[Entry]) -> Vec<PathBuf> {
+        let mut folders: Vec<PathBuf> = pages
+            .iter()
+            .filter_map(|p| {
+                let mut at = p.path.parent()?;
+                while at.parent() != Some(dir) {
+                    at = at.parent()?;
                 }
-                parent_dir
-            }
-            None => PathBuf::from(TOPICS_DIR),
-        };
+                Some(at.to_path_buf())
+            })
+            .filter(|folder| !pages.iter().any(|p| p.path == page_of(folder)))
+            .collect();
+        folders.sort();
+        folders.dedup();
+        folders
+    }
 
-        let name = from
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        let taken = self.store.taken_names(&parent_dir)?;
-        let to = parent_dir.join(slug::unique(&name, &taken));
-        if from == to {
-            return Ok(());
+    /// The pages directly in `dir`, as file stems, in the person's order.
+    fn ordered(&self, dir: &Path, pages: &[Entry]) -> Result<Vec<String>> {
+        self.store.ordered_pages(dir, |stem| {
+            pages
+                .iter()
+                .find(|p| p.path.parent() == Some(dir) && stem_of(&p.path) == stem)
+                .map(|p| p.title.clone())
+                .unwrap_or_else(|| stem.to_string())
+        })
+    }
+
+    /// Put `stem` at `position` among the pages of `dir` — counting from 0, among the others —
+    /// or at the end, and write the order down.
+    fn place(&self, dir: &Path, stem: &str, position: Option<usize>) -> Result<()> {
+        let pages = self.index.entries(Kind::Document)?;
+        let mut order = self.ordered(dir, &pages)?;
+        order.retain(|s| s != stem);
+        let at = position.unwrap_or(order.len()).min(order.len());
+        order.insert(at, stem.to_string());
+        self.store.write_order(dir, &order)
+    }
+
+    /// Take `stem` out of the order of `dir`. A folder of sub-pages left with none goes, with
+    /// its `.order`, so a page with no sub-pages has no folder.
+    fn unplace(&self, dir: &Path, stem: &str) -> Result<()> {
+        let pages = self.index.entries(Kind::Document)?;
+        let mut order = self.ordered(dir, &pages)?;
+        order.retain(|s| s != stem);
+        self.store.write_order(dir, &order)?;
+        if order.is_empty() && dir != Path::new(TOPICS_DIR) {
+            // Only if nothing else is in it: a picture or a file of the person's own keeps it.
+            let _ = self.store.remove_empty(dir);
         }
-
-        self.store.move_path(&from, &to)?;
-        self.index.rebuild(&self.store)?;
         Ok(())
     }
 
-    /// Where something belongs once it has been renamed, beside where it sits now.
+    /// The folder the pages under `parent` live in: the top of the tree for none.
+    fn children_dir(&self, parent: Option<Id>) -> Result<PathBuf> {
+        match parent {
+            Some(id) => Ok(folder_of(&self.expect(id, Kind::Document)?.path)),
+            None => Ok(PathBuf::from(TOPICS_DIR)),
+        }
+    }
+
+    /// Where something belongs once it has been renamed, beside where it sits now, as a stem.
     ///
-    /// The extension is the caller's business — a topic is a folder and a document is a
-    /// `.md`, and only the caller knows which it is holding.
-    ///
-    /// Its own name is not counted as taken. Without that, renaming a topic to the name it
-    /// already has would turn `protein` into `protein-2`, and a user who opened the rename
-    /// box and pressed Enter without changing anything would watch their folder get a number
-    /// on the end for no reason.
+    /// Its own name is not counted as taken — neither its file nor its folder, which share it.
+    /// Without that, renaming a page to the name it already has would turn `protein` into
+    /// `protein-2`, and somebody who opened the rename box and pressed Enter without changing
+    /// anything would watch their file get a number on the end for no reason.
     fn renamed_beside(&self, current: &Path, name: &str) -> Result<PathBuf> {
         let parent = current
             .parent()
@@ -341,117 +348,50 @@ impl Engine {
         Ok(parent.join(slug::unique(name, &taken)))
     }
 
-    /// What deleting this topic would reach.
-    ///
-    /// Everything below it, not only what is directly inside: a topic with one empty-looking
-    /// sub-topic can hold a year of writing two levels down, and a plan that stopped at the
-    /// first level would be the most misleading possible answer.
-    pub fn topic_delete_plan(&self, id: Id) -> Result<TopicContents> {
-        let dir = self.topic_dir(id)?;
-
-        let mut contents = TopicContents::default();
-        for entry in self.index.entries(Kind::Topic)? {
-            if entry.path.starts_with(&dir) && entry.path != dir {
-                contents.topics += 1;
-            }
+    /// Move a page's file, the folder of its sub-pages and its pictures into `to_dir`, under a
+    /// name free there. Returns the page's new path. Leaves the order files to the caller.
+    fn move_page_files(&self, from: &Path, to_dir: &Path) -> Result<PathBuf> {
+        let from_dir = from
+            .parent()
+            .ok_or_else(|| Error::library("a page outside any folder"))?
+            .to_path_buf();
+        let taken = self.store.taken_names(to_dir)?;
+        let stem = slug::unique(&stem_of(from), &taken);
+        let to = to_dir.join(format!("{stem}.md"));
+        if to == from {
+            return Ok(to);
         }
-        for entry in self.index.entries(Kind::Document)? {
-            if entry.path.starts_with(&dir) {
-                contents.documents.push(DocumentSummary {
-                    id: entry.id,
-                    title: entry.title,
-                });
-            }
+        // The pictures go with it. They are referenced by bare filename, so a page that moved
+        // without them would keep pointing at names that are no longer beside it — broken
+        // pictures in the app and in every other Markdown reader.
+        let images = self.store.read_document(from)?.entity.images();
+        self.store.move_path(from, &to)?;
+        let folder = folder_of(from);
+        if self.store.absolute(&folder).is_dir() {
+            self.store.move_path(&folder, &folder_of(&to))?;
         }
-        Ok(contents)
-    }
-
-    /// Delete a topic, having been told what to do with what is inside it.
-    pub fn topic_delete(&mut self, id: Id, contents: Contents) -> Result<()> {
-        self.library.ensure_writable()?;
-        let dir = self.topic_dir(id)?;
-
-        if contents == Contents::MoveUp {
-            // The parent, as a topic. `topics/protein` has none — its parent is the root,
-            // and a document cannot live there.
-            let parent_dir = dir
-                .parent()
-                .ok_or_else(|| Error::library("a topic outside the library"))?
-                .to_path_buf();
-            let parent = if parent_dir == Path::new(TOPICS_DIR) {
-                None
-            } else {
-                Some(self.store.read_topic(&parent_dir)?.entity.id)
-            };
-
-            // Only what is *directly* inside. A nested topic carries its own contents with it,
-            // and moving those one at a time would be moving the same documents twice.
-            let documents: Vec<Id> = self
-                .index
-                .entries(Kind::Document)?
-                .into_iter()
-                .filter(|e| e.path.parent() == Some(dir.as_path()))
-                .map(|e| e.id)
-                .collect();
-            let topics: Vec<Id> = self
-                .index
-                .entries(Kind::Topic)?
-                .into_iter()
-                .filter(|e| e.path.parent() == Some(dir.as_path()))
-                .map(|e| e.id)
-                .collect();
-
-            match parent {
-                Some(parent) => {
-                    for document in documents {
-                        self.document_move(document, parent)?;
-                    }
-                }
-                None if documents.is_empty() => {}
-                // Said plainly rather than guessed at. Inventing a topic to hold them, or
-                // deleting them because there is nowhere to put them, are both worse than
-                // telling somebody that this particular choice is not available here.
-                None => return Err(Error::invalid(
-                    "contents",
-                    "a document cannot sit outside a topic, so these have nowhere to move up to",
-                )),
-            }
-
-            for topic in topics {
-                self.topic_move(topic, parent)?;
-            }
-
-            // Whatever is left is the topic's own `topic.toml` and anything a user put there
-            // by hand, so this is a tree removal and not an empty-folder one.
-            self.store.remove_tree(&dir)?;
-        } else {
-            self.store.remove_tree(&dir)?;
+        let taken = self.store.taken_names(to_dir)?;
+        for image in images {
+            self.store.move_beside(&from_dir, to_dir, &image, &taken)?;
         }
-
-        // Everything under the folder has gone or moved, and the index is where paths live.
-        self.index.rebuild(&self.store)?;
-        Ok(())
-    }
-
-    pub fn topic_tree(&self) -> Result<Vec<TopicNode>> {
-        let topics = self.index.entries(Kind::Topic)?;
-        let documents = self.index.entries(Kind::Document)?;
-        let root = Path::new(TOPICS_DIR);
-        Ok(build_tree(root, &topics, &documents))
+        Ok(to)
     }
 
     // ---- documents -------------------------------------------------------------
 
-    pub fn document_create(&mut self, topic: Id, title: impl Into<String>) -> Result<Id> {
+    /// A new page under `parent`, or at the top of the tree for none, at the end of its level.
+    /// The parent's folder is made with its first sub-page.
+    pub fn document_create(&mut self, parent: Option<Id>, title: impl Into<String>) -> Result<Id> {
         self.library.ensure_writable()?;
         let title = title.into();
         if title.trim().is_empty() {
-            return Err(Error::invalid("title", "a document needs a title"));
+            return Err(Error::invalid("title", "a page needs a title"));
         }
 
-        let dir = self.topic_dir(topic)?;
+        let dir = self.children_dir(parent)?;
         let taken = self.store.taken_names(&dir)?;
-        let path = dir.join(format!("{}.md", slug::unique(&title, &taken)));
+        let stem = slug::unique(&title, &taken);
+        let path = dir.join(format!("{stem}.md"));
 
         let document = Document::new(title);
         let id = document.id();
@@ -461,6 +401,7 @@ impl Engine {
             path,
             revision,
         })?;
+        self.place(&dir, &stem, None)?;
         Ok(id)
     }
 
@@ -569,21 +510,42 @@ impl Engine {
             return Err(Error::invalid("range", "there is nothing there to take"));
         }
 
-        // Beside the original rather than through `document_create`, which would need the
-        // topic's identifier for a folder this already has in hand — and the folder is what
-        // keeps the pictures working.
+        // Under the original, as a sub-page: a part split out of a page belongs under it
+        // (ADR 0009). Its pictures follow it into the sub-page folder, copied where the text
+        // left behind still shows them too, so neither page loses one.
         let dir = entry
             .path
             .parent()
             .ok_or_else(|| Error::library("a document outside any folder"))?
             .to_path_buf();
-        let taken_names = self.store.taken_names(&dir)?;
-        let path = dir.join(format!("{}.md", slug::unique(&title, &taken_names)));
+        let folder = folder_of(&entry.path);
+        let taken_names = self.store.taken_names(&folder)?;
+        let stem = slug::unique(&title, &taken_names);
+        let path = folder.join(format!("{stem}.md"));
 
         let mut taken = Document::new(title);
         taken.body = taken_text.to_string();
         let taken_id = taken.id();
+        let left_behind = Document {
+            meta: found.entity.meta.clone(),
+            body: format!("{}{}", &body[..range.start], &body[range.end..]),
+        };
+        let still_shown = left_behind.images();
         let revision = self.store.write_document(&path, &taken)?;
+        for image in taken.images() {
+            if let Some(file) = self.store.beside_file(&dir, &image) {
+                if still_shown.contains(&image) {
+                    self.store.copy_beside(&folder, &image, &file)?;
+                } else {
+                    self.store.move_beside(
+                        &dir,
+                        &folder,
+                        &image,
+                        &self.store.taken_names(&folder)?,
+                    )?;
+                }
+            }
+        }
         let taken = crate::store::Found {
             entity: taken,
             path,
@@ -606,6 +568,7 @@ impl Engine {
 
         self.index.upsert_document(&taken)?;
         self.index.upsert_document(&original)?;
+        self.place(&folder, &stem, None)?;
 
         Ok(Split {
             original: self.view(original)?,
@@ -636,11 +599,34 @@ impl Engine {
         //
         // The pictures stay where they are: they sit beside the document in the same folder,
         // which this does not change.
+        //
+        // Its folder of sub-pages follows too, so the two keep one name, and its place among
+        // its siblings is kept under the new name.
         let path = self
             .renamed_beside(&entry.path, &title)?
             .with_extension("md");
         if path != entry.path {
+            let dir = path.parent().unwrap_or(Path::new(TOPICS_DIR)).to_path_buf();
+            let pages = self.index.entries(Kind::Document)?;
+            let mut order = self.ordered(&dir, &pages)?;
+            let (old, new) = (stem_of(&entry.path), stem_of(&path));
+            for stem in &mut order {
+                if *stem == old {
+                    *stem = new.clone();
+                }
+            }
+
             self.store.move_path(&entry.path, &path)?;
+            let folder = folder_of(&entry.path);
+            let moved_folder = self.store.absolute(&folder).is_dir();
+            if moved_folder {
+                self.store.move_path(&folder, &folder_of(&path))?;
+            }
+            self.store.write_order(&dir, &order)?;
+            if moved_folder {
+                // Every page underneath has a new path, and the index is where paths live.
+                self.index.rebuild(&self.store)?;
+            }
         }
 
         // Re-read rather than reuse: the revision has to be the one this file has now.
@@ -649,48 +635,104 @@ impl Engine {
         self.view(found)
     }
 
-    pub fn document_move(&mut self, id: Id, topic: Id) -> Result<DocumentView> {
+    /// Move a page, with every page under it, to under `parent` (or the top of the tree), at
+    /// `position` among the pages there — counting from 0 — or at the end. The same parent
+    /// with another position only reorders.
+    pub fn document_move(
+        &mut self,
+        id: Id,
+        parent: Option<Id>,
+        position: Option<usize>,
+    ) -> Result<DocumentView> {
         self.library.ensure_writable()?;
-        let entry = self.expect(id, Kind::Document)?;
-        let dir = self.topic_dir(topic)?;
-
-        let name = entry
-            .path
-            .file_stem()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        let taken = self.store.taken_names(&dir)?;
-        let to = dir.join(format!("{}.md", slug::unique(&name, &taken)));
-
-        if to != entry.path {
-            // The images go with it. They are referenced by bare filename, so a document that
-            // moved without them would keep pointing at names that are no longer beside it —
-            // broken pictures in the app and in every other Markdown reader.
-            let from_dir = entry
-                .path
-                .parent()
-                .ok_or_else(|| Error::library("a document outside any folder"))?
-                .to_path_buf();
-            let images = self.store.read_document(&entry.path)?.entity.images();
-
-            self.store.move_path(&entry.path, &to)?;
-
-            let taken = self.store.taken_names(&dir)?;
-            for image in images {
-                self.store.move_beside(&from_dir, &dir, &image, &taken)?;
-            }
+        let from = self.expect(id, Kind::Document)?.path;
+        let from_dir = from
+            .parent()
+            .ok_or_else(|| Error::library("a page outside any folder"))?
+            .to_path_buf();
+        let to_dir = self.children_dir(parent)?;
+        if to_dir.starts_with(folder_of(&from)) {
+            return Err(Error::invalid(
+                "parent",
+                "a page cannot be moved under itself",
+            ));
         }
+
+        let stem = stem_of(&from);
+        if to_dir == from_dir {
+            self.place(&to_dir, &stem, position)?;
+            let found = self.store.read_document(&from)?;
+            return self.view(found);
+        }
+
+        let to = self.move_page_files(&from, &to_dir)?;
         self.index.rebuild(&self.store)?;
+        self.place(&to_dir, &stem_of(&to), position)?;
+        self.unplace(&from_dir, &stem)?;
         let found = self.store.read_document(&to)?;
         self.view(found)
     }
 
-    pub fn document_delete(&mut self, id: Id) -> Result<()> {
+    /// What deleting this page would reach: every page under it, at any depth.
+    pub fn document_delete_plan(&self, id: Id) -> Result<PageContents> {
+        let folder = folder_of(&self.expect(id, Kind::Document)?.path);
+        let pages = self
+            .index
+            .entries(Kind::Document)?
+            .into_iter()
+            .filter(|e| e.path.starts_with(&folder))
+            .map(|e| DocumentSummary {
+                id: e.id,
+                title: e.title,
+            })
+            .collect();
+        Ok(PageContents { pages })
+    }
+
+    /// Delete a page, having been told what to do with the pages under it.
+    pub fn document_delete(&mut self, id: Id, contents: Contents) -> Result<()> {
         self.library.ensure_writable()?;
-        let entry = self.expect(id, Kind::Document)?;
-        self.store.remove_document(&entry.path)?;
-        self.index.forget(id)
+        let path = self.expect(id, Kind::Document)?.path;
+        let dir = path
+            .parent()
+            .ok_or_else(|| Error::library("a page outside any folder"))?
+            .to_path_buf();
+        let stem = stem_of(&path);
+        let folder = folder_of(&path);
+
+        if self.store.absolute(&folder).is_dir() {
+            match contents {
+                Contents::Delete => self.store.remove_tree(&folder)?,
+                Contents::MoveUp => {
+                    // Only what is *directly* under it, in its order, into its place: a
+                    // sub-page carries its own pages with it.
+                    let pages = self.index.entries(Kind::Document)?;
+                    let children = self.ordered(&folder, &pages)?;
+                    let mut order = self.ordered(&dir, &pages)?;
+                    let at = order.iter().position(|s| *s == stem).unwrap_or(order.len());
+                    order.retain(|s| *s != stem);
+                    let mut moved = Vec::new();
+                    for child in &children {
+                        let to = self.move_page_files(&folder.join(format!("{child}.md")), &dir)?;
+                        moved.push(stem_of(&to));
+                    }
+                    for (i, child) in moved.into_iter().enumerate() {
+                        order.insert((at + i).min(order.len()), child);
+                    }
+                    // The page itself, still on disk until just below, stays listed after them
+                    // until `unplace` takes it out once it is gone.
+                    order.insert((at + children.len()).min(order.len()), stem.clone());
+                    self.store.write_order(&dir, &order)?;
+                    // What is left is its `.order` and anything a person put there by hand.
+                    self.store.remove_tree(&folder)?;
+                }
+            }
+        }
+
+        self.store.remove_document(&path)?;
+        self.index.rebuild(&self.store)?;
+        self.unplace(&dir, &stem)?;
+        Ok(())
     }
 
     /// Documents linking here, derived from `[[…]]` rather than stored.
@@ -1131,18 +1173,30 @@ impl Engine {
         }
     }
 
-    fn topic_dir(&self, id: Id) -> Result<PathBuf> {
-        Ok(self.expect(id, Kind::Topic)?.path)
+    /// The page `path` is under; none at the top of the tree, or under a folder with no page.
+    fn parent_of(&self, path: &Path) -> Result<Option<Id>> {
+        let Some(dir) = path.parent() else {
+            return Ok(None);
+        };
+        if dir == Path::new(TOPICS_DIR) {
+            return Ok(None);
+        }
+        let page = page_of(dir);
+        Ok(self
+            .index
+            .entries(Kind::Document)?
+            .into_iter()
+            .find(|e| e.path == page)
+            .map(|e| e.id))
     }
 
     fn view(&self, found: crate::store::Found<Document>) -> Result<DocumentView> {
-        let topic_dir = found.path.parent().unwrap_or(Path::new(TOPICS_DIR));
-        let topic = self.store.read_topic(topic_dir)?.entity.id;
+        let parent = self.parent_of(&found.path)?;
         Ok(DocumentView {
             id: found.entity.id(),
             title: found.entity.title().to_string(),
             body: found.entity.body.clone(),
-            topic,
+            parent,
             created: found.entity.meta.created,
             modified: found.entity.meta.modified,
             revision: found.revision,
@@ -1337,30 +1391,13 @@ fn ensure_pdf(from: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Assemble the tree from paths. Parent/child is the directory relation, so the tree the user
-/// sees and the tree on disk cannot disagree.
-fn build_tree(parent: &Path, topics: &[Entry], documents: &[Entry]) -> Vec<TopicNode> {
-    topics
-        .iter()
-        .filter(|t| t.path.parent() == Some(parent))
-        .map(|t| TopicNode {
-            id: t.id,
-            name: t.title.clone(),
-            children: build_tree(&t.path, topics, documents),
-            documents: documents
-                .iter()
-                .filter(|d| d.path.parent() == Some(t.path.as_path()))
-                .map(|d| DocumentSummary {
-                    id: d.id,
-                    title: d.title.clone(),
-                })
-                .collect(),
-        })
-        .collect()
+/// A page's file name without `.md`.
+fn stem_of(path: &Path) -> String {
+    path.file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
 }
-
-/// Re-exported so callers do not need the module path for the one constant they touch.
-pub use topic::MANIFEST as TOPIC_MANIFEST;
 
 /// What is already in `dir`, lowercased.
 ///

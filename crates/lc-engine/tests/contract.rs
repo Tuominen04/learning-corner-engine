@@ -40,73 +40,198 @@ fn opening_a_folder_that_is_not_a_library_says_so() {
 fn status_counts_what_is_there() {
     let mut fixture = Fixture::populated();
     let status = fixture.engine().status().unwrap();
-    assert_eq!(status.topics, 2);
-    assert_eq!(status.documents, 3);
+    assert_eq!(
+        status.documents, 5,
+        "two former topics and three documents, all pages now"
+    );
     assert!(status.problems.is_empty(), "{:?}", status.problems);
     assert!(status.writable);
 }
 
-// ---- topics --------------------------------------------------------------------
+// ---- the tree of pages ----------------------------------------------------------
 
-#[test]
-fn the_tree_nests() {
-    let mut fixture = Fixture::populated();
-    let tree = fixture.engine().topic_tree().unwrap();
-
-    assert_eq!(tree.len(), 1);
-    let protein = &tree[0];
-    assert_eq!(protein.name, "Protein");
-    assert_eq!(protein.documents.len(), 2);
-    assert_eq!(protein.children.len(), 1);
-    assert_eq!(protein.children[0].name, "In the body");
-    assert_eq!(protein.children[0].documents.len(), 1);
+fn titles(nodes: &[lc_engine::api::PageNode]) -> Vec<&str> {
+    nodes.iter().map(|n| n.title.as_str()).collect()
 }
 
 #[test]
-fn renaming_a_topic_keeps_its_documents() {
+fn the_tree_nests_in_the_order_pages_were_made() {
+    let mut fixture = Fixture::populated();
+    let tree = fixture.engine().page_tree().unwrap();
+
+    assert_eq!(titles(&tree), ["Protein"]);
+    let protein = &tree[0];
+    assert_eq!(
+        titles(&protein.children),
+        ["What protein is", "Types of protein", "In the body"]
+    );
+    assert_eq!(
+        titles(&protein.children[2].children),
+        ["How protein is used"]
+    );
+}
+
+#[test]
+fn a_page_s_sub_pages_are_in_a_folder_named_like_it_beside_it() {
+    let mut fixture = Fixture::populated();
+    let root = fixture.root().to_path_buf();
+    assert!(root.join("topics/protein.md").is_file());
+    assert!(root.join("topics/protein/what-protein-is.md").is_file());
+    assert!(root.join("topics/protein/in-the-body.md").is_file());
+    assert!(root
+        .join("topics/protein/in-the-body/how-protein-is-used.md")
+        .is_file());
+    // A page with no sub-pages has no folder.
+    assert!(!root.join("topics/protein/what-protein-is").exists());
+    assert_eq!(
+        std::fs::read_to_string(root.join("topics/protein/.order")).unwrap(),
+        "what-protein-is\ntypes-of-protein\nin-the-body\n"
+    );
+    let _ = fixture.engine();
+}
+
+#[test]
+fn renaming_a_page_takes_its_folder_and_keeps_its_place() {
     let mut fixture = Fixture::populated();
     let ids = fixture.ids();
 
     fixture
         .engine()
-        .topic_rename(ids.protein, "Proteins")
+        .document_rename(ids.in_the_body, "Inside us")
         .unwrap();
 
-    let tree = fixture.engine().topic_tree().unwrap();
-    assert_eq!(tree[0].name, "Proteins");
-    assert_eq!(tree[0].documents.len(), 2);
-    assert!(fixture.engine().document_read(ids.what_protein_is).is_ok());
-}
-
-#[test]
-fn a_topic_cannot_be_moved_inside_itself() {
-    let mut fixture = Fixture::populated();
-    let ids = fixture.ids();
-    assert!(matches!(
-        fixture
-            .engine()
-            .topic_move(ids.protein, Some(ids.in_the_body)),
-        Err(Error::Invalid { .. })
-    ));
-}
-
-#[test]
-fn moving_a_topic_to_the_root_carries_its_documents() {
-    let mut fixture = Fixture::populated();
-    let ids = fixture.ids();
-
-    fixture.engine().topic_move(ids.in_the_body, None).unwrap();
-
-    let tree = fixture.engine().topic_tree().unwrap();
-    assert_eq!(tree.len(), 2, "both topics should now be at the root");
+    let root = fixture.root().to_path_buf();
+    assert!(root.join("topics/protein/inside-us.md").is_file());
+    assert!(root
+        .join("topics/protein/inside-us/how-protein-is-used.md")
+        .is_file());
+    assert!(!root.join("topics/protein/in-the-body").exists());
+    let tree = fixture.engine().page_tree().unwrap();
+    assert_eq!(
+        titles(&tree[0].children),
+        ["What protein is", "Types of protein", "Inside us"]
+    );
     assert!(fixture.engine().document_read(ids.how_used).is_ok());
 }
 
 #[test]
-fn a_topic_needs_a_name() {
+fn a_page_cannot_be_moved_under_itself() {
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+    for under in [ids.protein, ids.in_the_body] {
+        assert!(matches!(
+            fixture
+                .engine()
+                .document_move(ids.protein, Some(under), None),
+            Err(Error::Invalid { .. })
+        ));
+    }
+    assert!(fixture.root().join("topics/protein.md").is_file());
+}
+
+#[test]
+fn moving_a_page_to_the_top_carries_its_pages() {
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+
+    fixture
+        .engine()
+        .document_move(ids.in_the_body, None, None)
+        .unwrap();
+
+    let tree = fixture.engine().page_tree().unwrap();
+    assert_eq!(titles(&tree), ["Protein", "In the body"]);
+    assert_eq!(titles(&tree[1].children), ["How protein is used"]);
+    assert_eq!(
+        fixture.engine().document_read(ids.how_used).unwrap().parent,
+        Some(ids.in_the_body)
+    );
+}
+
+#[test]
+fn moving_a_page_to_a_position_among_its_new_siblings() {
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+
+    fixture
+        .engine()
+        .document_move(ids.how_used, Some(ids.protein), Some(1))
+        .unwrap();
+
+    let tree = fixture.engine().page_tree().unwrap();
+    assert_eq!(
+        titles(&tree[0].children),
+        [
+            "What protein is",
+            "How protein is used",
+            "Types of protein",
+            "In the body"
+        ]
+    );
+    assert!(
+        !fixture.root().join("topics/protein/in-the-body").exists(),
+        "the folder its last sub-page left was kept"
+    );
+}
+
+#[test]
+fn reordering_among_siblings_moves_no_file() {
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+
+    let before = fixture.engine().document_read(ids.in_the_body).unwrap();
+    fixture
+        .engine()
+        .document_move(ids.in_the_body, Some(ids.protein), Some(0))
+        .unwrap();
+
+    let tree = fixture.engine().page_tree().unwrap();
+    assert_eq!(
+        titles(&tree[0].children),
+        ["In the body", "What protein is", "Types of protein"]
+    );
+    let after = fixture.engine().document_read(ids.in_the_body).unwrap();
+    assert_eq!(
+        after.revision, before.revision,
+        "the page itself was rewritten"
+    );
+}
+
+#[test]
+fn a_hand_made_page_is_listed_after_the_ordered_ones_and_a_missing_one_is_skipped() {
+    // `.order` only ever orders what is there: a page added in a file manager still shows,
+    // and a name left on the list after its page was deleted by hand breaks nothing.
+    let mut fixture = Fixture::populated();
+    let root = fixture.root().to_path_buf();
+    std::fs::write(
+        root.join("topics/protein/aardvarks.md"),
+        "+++\nid = \"01J8ZQ9C3P5R7T9V1X3Z5B7D9F\"\ntitle = \"Aardvarks\"\ncreated = 2026-09-06T10:00:00Z\nmodified = 2026-09-06T10:00:00Z\n+++\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("topics/protein/.order"),
+        "gone\ntypes-of-protein\nwhat-protein-is\n",
+    )
+    .unwrap();
+    fixture.reopen();
+
+    let tree = fixture.engine().page_tree().unwrap();
+    assert_eq!(
+        titles(&tree[0].children),
+        [
+            "Types of protein",
+            "What protein is",
+            "Aardvarks",
+            "In the body"
+        ]
+    );
+}
+
+#[test]
+fn a_page_needs_a_title() {
     let (_dir, mut engine) = Fixture::empty();
     assert!(matches!(
-        engine.topic_create(None, "  "),
+        engine.document_create(None, "  "),
         Err(Error::Invalid { .. })
     ));
 }
@@ -120,7 +245,7 @@ fn a_document_round_trips() {
 
     let read = fixture.engine().document_read(ids.what_protein_is).unwrap();
     assert_eq!(read.title, "What protein is");
-    assert_eq!(read.topic, ids.protein);
+    assert_eq!(read.parent, Some(ids.protein));
     assert!(read.body.contains("amino acids"));
 }
 
@@ -141,19 +266,19 @@ fn renaming_a_document_keeps_its_body_and_identifier() {
 }
 
 #[test]
-fn moving_a_document_changes_its_topic_and_nothing_else() {
+fn moving_a_page_changes_its_parent_and_nothing_else() {
     let mut fixture = Fixture::populated();
     let ids = fixture.ids();
 
     let before = fixture.engine().document_read(ids.what_protein_is).unwrap();
     let after = fixture
         .engine()
-        .document_move(ids.what_protein_is, ids.in_the_body)
+        .document_move(ids.what_protein_is, Some(ids.in_the_body), None)
         .unwrap();
 
     assert_eq!(after.id, before.id);
     assert_eq!(after.body, before.body);
-    assert_eq!(after.topic, ids.in_the_body);
+    assert_eq!(after.parent, Some(ids.in_the_body));
 }
 
 #[test]
@@ -163,14 +288,14 @@ fn deleting_a_document_removes_it_from_the_tree() {
 
     fixture
         .engine()
-        .document_delete(ids.types_of_protein)
+        .document_delete(ids.types_of_protein, lc_engine::api::Contents::Delete)
         .unwrap();
 
     assert!(matches!(
         fixture.engine().document_read(ids.types_of_protein),
         Err(Error::NotFound(_))
     ));
-    assert_eq!(fixture.engine().status().unwrap().documents, 2);
+    assert_eq!(fixture.engine().status().unwrap().documents, 4);
 }
 
 #[test]
@@ -183,21 +308,27 @@ fn an_unknown_identifier_is_not_found() {
 }
 
 #[test]
-fn a_topic_identifier_is_not_a_document_identifier() {
+fn a_page_with_sub_pages_is_a_document_like_any_other() {
+    // What format 1 called a topic is a page with writing of its own: it reads, and takes a
+    // body, like every other.
     let mut fixture = Fixture::populated();
     let ids = fixture.ids();
-    assert!(matches!(
-        fixture.engine().document_read(ids.protein),
-        Err(Error::NotFound(_))
-    ));
+    let page = fixture.engine().document_read(ids.protein).unwrap();
+    assert_eq!(page.title, "Protein");
+    assert_eq!(page.parent, None);
+    let written = fixture
+        .engine()
+        .document_write(ids.protein, "What protein is, in brief.", page.revision)
+        .unwrap();
+    assert_eq!(written.body, "What protein is, in brief.");
 }
 
 #[test]
 fn a_document_needs_a_title() {
     let (_dir, mut engine) = Fixture::empty();
-    let topic = engine.topic_create(None, "Protein").unwrap();
+    let topic = engine.document_create(None, "Protein").unwrap();
     assert!(matches!(
-        engine.document_create(topic, ""),
+        engine.document_create(Some(topic), ""),
         Err(Error::Invalid { .. })
     ));
 }
@@ -279,10 +410,13 @@ fn a_hit_says_what_it_is() {
         "expected a source among {hits:?}"
     );
 
-    let topics = fixture.engine().search("protein").unwrap();
+    // A page that was a topic in format 1 is found like any page, by its title.
+    let pages = fixture.engine().search("protein").unwrap();
     assert!(
-        topics.iter().any(|h| h.kind == Kind::Topic),
-        "expected a topic among {topics:?}"
+        pages
+            .iter()
+            .any(|h| h.kind == Kind::Document && h.title == "Protein"),
+        "expected the Protein page among {pages:?}"
     );
 
     // And the kind is the entity's own, not guessed from where the word was found.
@@ -300,10 +434,10 @@ fn a_partial_word_finds_the_whole_one() {
     // reported as not existing while it was open on screen — "tuttu" is simply a different
     // token from "tuttujuttu", and nothing in the query said "or anything starting with it".
     let mut fixture = Fixture::populated();
-    let topic = fixture.engine().topic_create(None, "rename3").unwrap();
+    let topic = fixture.engine().document_create(None, "rename3").unwrap();
     fixture
         .engine()
-        .document_create(topic, "tuttujuttu")
+        .document_create(Some(topic), "tuttujuttu")
         .unwrap();
 
     for (typed, expected) in [("tuttu", "tuttujuttu"), ("rename", "rename3")] {
@@ -346,10 +480,10 @@ fn what_is_searched_is_the_writing_not_the_markers() {
     // somebody's own sentences, `cite` matching every document that cites anything, and ULIDs
     // being matchable — by prefix, now that terms are prefixes.
     let mut fixture = Fixture::populated();
-    let topic = fixture.engine().topic_create(None, "Probe").unwrap();
+    let topic = fixture.engine().document_create(None, "Probe").unwrap();
     let doc = fixture
         .engine()
-        .document_create(topic, "Suomi notes")
+        .document_create(Some(topic), "Suomi notes")
         .unwrap();
     let revision = fixture.engine().document_read(doc).unwrap().revision;
     fixture
@@ -552,7 +686,6 @@ fn nothing_crossing_the_wire_is_a_number_javascript_cannot_hold() {
     let payload = serde_json::json!({
         "revision": document.revision,
         "status": {
-            "topics": fixture.engine().status().unwrap().topics,
             "documents": fixture.engine().status().unwrap().documents,
         },
     });

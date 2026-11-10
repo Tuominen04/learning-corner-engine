@@ -55,21 +55,23 @@ fn the_taken_text_moves_and_a_link_is_left_behind() {
 }
 
 #[test]
-fn the_new_document_is_beside_the_one_it_came_out_of() {
-    // Same topic, same folder. The folder is what makes the pictures keep working.
+fn the_new_page_is_under_the_one_it_came_out_of() {
+    // A part split out of a page belongs under it (ADR 0009): in the page's folder of
+    // sub-pages, which is made for it if this is the first.
     let mut fixture = Fixture::populated();
     let ids = fixture.ids();
     let revision = set(&mut fixture, ids.what_protein_is, "One.\n\nTwo.");
 
-    fixture
+    let split = fixture
         .engine()
         .document_split(ids.what_protein_is, 6..10, "The second part", revision)
         .unwrap();
 
     assert!(fixture
         .root()
-        .join("topics/protein/the-second-part.md")
+        .join("topics/protein/what-protein-is/the-second-part.md")
         .is_file());
+    assert_eq!(split.taken.parent, Some(ids.what_protein_is));
 }
 
 #[test]
@@ -125,8 +127,8 @@ fn the_link_left_behind_is_a_real_backlink() {
 
 #[test]
 fn a_picture_in_the_taken_text_still_resolves() {
-    // The new document is beside the original, so a bare filename in the moved text points at
-    // the same file it always did. This is why the split writes beside rather than elsewhere.
+    // The new page is under the original, in its folder of sub-pages, and the picture its text
+    // shows goes there with it — so the bare filename in the moved text still finds it.
     let mut fixture = Fixture::populated();
     let ids = fixture.ids();
     let downloads = tempfile::tempdir().unwrap();
@@ -151,6 +153,41 @@ fn a_picture_in_the_taken_text_still_resolves() {
         .document_image(split.taken.id, &name)
         .unwrap()
         .is_some());
+}
+
+#[test]
+fn a_picture_shown_on_both_sides_of_a_split_is_kept_for_both() {
+    // Shown in the text taken and in the text left behind: copied, not moved, so neither page
+    // loses it.
+    let mut fixture = Fixture::populated();
+    let ids = fixture.ids();
+    let downloads = tempfile::tempdir().unwrap();
+    let original = downloads.path().join("diagram.png");
+    fs::write(&original, b"\x89PNG\r\n\x1a\nbody").unwrap();
+
+    let name = fixture
+        .engine()
+        .document_attach_image(ids.what_protein_is, &original, lc_engine::api::Keep::Copy)
+        .unwrap();
+    let body = format!("Intro ![Diagram]({name}).\n\nAgain ![Diagram]({name}).");
+    let revision = set(&mut fixture, ids.what_protein_is, &body);
+
+    let at = body.find("Again").unwrap();
+    let split = fixture
+        .engine()
+        .document_split(ids.what_protein_is, at..body.len(), "Again", revision)
+        .unwrap();
+
+    for page in [ids.what_protein_is, split.taken.id] {
+        assert!(
+            fixture
+                .engine()
+                .document_image(page, &name)
+                .unwrap()
+                .is_some(),
+            "a page lost its picture"
+        );
+    }
 }
 
 #[test]
@@ -287,8 +324,14 @@ fn splitting_twice_onto_one_title_does_not_land_on_itself() {
     assert_ne!(first.taken.id, second.taken.id);
     assert_eq!(first.taken.body, "Two.");
     assert_eq!(second.taken.body, "Three.");
-    assert!(fixture.root().join("topics/protein/notes.md").is_file());
-    assert!(fixture.root().join("topics/protein/notes-2.md").is_file());
+    assert!(fixture
+        .root()
+        .join("topics/protein/what-protein-is/notes.md")
+        .is_file());
+    assert!(fixture
+        .root()
+        .join("topics/protein/what-protein-is/notes-2.md")
+        .is_file());
 }
 
 #[test]

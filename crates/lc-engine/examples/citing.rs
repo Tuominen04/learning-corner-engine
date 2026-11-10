@@ -49,8 +49,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     talk.site = Some("Aalto University".into());
     let (lecture, _) = engine.source_create(talk)?;
 
-    let topic = engine.topic_create(None, "Protein")?;
-    let document = engine.document_create(topic, "What protein is")?;
+    let page = engine.document_create(None, "Protein")?;
+    let document = engine.document_create(Some(page), "What protein is")?;
     let revision = engine.document_read(document)?.revision;
 
     let body = format!(

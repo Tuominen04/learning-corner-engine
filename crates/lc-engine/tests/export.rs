@@ -49,7 +49,7 @@ impl Library {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let mut engine = Engine::create(dir.path().join("learning"), "Learning").unwrap();
-        let topic = engine.topic_create(None, "Protein").unwrap();
+        let topic = engine.document_create(None, "Protein").unwrap();
         Library {
             _dir: dir,
             downloads: tempfile::tempdir().unwrap(),
@@ -63,7 +63,10 @@ impl Library {
     }
 
     fn document(&mut self, title: &str, body: &str) -> Id {
-        let id = self.engine.document_create(self.topic, title).unwrap();
+        let id = self
+            .engine
+            .document_create(Some(self.topic), title)
+            .unwrap();
         self.write(id, body);
         id
     }

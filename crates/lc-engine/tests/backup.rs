@@ -456,7 +456,7 @@ fn a_restore_refuses_a_newer_format_before_writing_anything() {
     let text = fs::read_to_string(&manifest).unwrap();
     fs::write(
         &manifest,
-        text.replace("format_version = 1", "format_version = 99"),
+        text.replace("format_version = 2", "format_version = 99"),
     )
     .unwrap();
 
@@ -469,11 +469,29 @@ fn a_restore_refuses_a_newer_format_before_writing_anything() {
 }
 
 #[test]
-fn the_frozen_v1_library_backs_up_and_restores_byte_for_byte() {
+fn a_format_1_backup_asks_to_be_converted_before_it_is_brought_anywhere() {
+    // A drive backed up before pages replaced topics holds a format 1 library. It is refused
+    // before anything is written, as opening one is, and converted only on the person's say-so.
     let dir = tempfile::tempdir().unwrap();
-    let library = dir.path().join("v1");
+    let drive = dir.path().join("old-drive");
     copy_tree(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v1"),
+        &drive,
+    );
+    let elsewhere = dir.path().join("new-computer");
+    assert!(matches!(
+        Engine::restore_plan(&drive, &elsewhere),
+        Err(Error::MigrationRequired { found: 1, .. })
+    ));
+    assert!(!elsewhere.exists());
+}
+
+#[test]
+fn the_frozen_v2_library_backs_up_and_restores_byte_for_byte() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = dir.path().join("v2");
+    copy_tree(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v2"),
         &library,
     );
     let engine = Engine::open(&library).unwrap();

@@ -44,12 +44,12 @@ fn every_file_is_readable_text() {
 }
 
 #[test]
-fn folders_mirror_the_topic_tree() {
+fn folders_mirror_the_tree_of_pages() {
     let fixture = Fixture::populated();
-    assert!(fixture.root().join("topics/protein/topic.toml").is_file());
+    assert!(fixture.root().join("topics/protein.md").is_file());
     assert!(fixture
         .root()
-        .join("topics/protein/in-the-body/topic.toml")
+        .join("topics/protein/in-the-body.md")
         .is_file());
     assert!(fixture
         .root()
@@ -195,10 +195,10 @@ fn the_working_directory_is_the_only_thing_the_engine_owns() {
 #[test]
 fn finnish_and_cyrillic_titles_become_usable_filenames() {
     let (dir, mut engine) = Fixture::empty();
-    let topic = engine.topic_create(None, "Venäjän kieli").unwrap();
-    engine.document_create(topic, "Я вас любил").unwrap();
+    let topic = engine.document_create(None, "Venäjän kieli").unwrap();
+    engine.document_create(Some(topic), "Я вас любил").unwrap();
 
-    assert!(dir.path().join("topics/venäjän-kieli/topic.toml").is_file());
+    assert!(dir.path().join("topics/venäjän-kieli.md").is_file());
     assert!(dir
         .path()
         .join("topics/venäjän-kieli/я-вас-любил.md")
@@ -208,9 +208,9 @@ fn finnish_and_cyrillic_titles_become_usable_filenames() {
 #[test]
 fn two_documents_with_the_same_title_get_distinct_files() {
     let (dir, mut engine) = Fixture::empty();
-    let topic = engine.topic_create(None, "Protein").unwrap();
-    let first = engine.document_create(topic, "Notes").unwrap();
-    let second = engine.document_create(topic, "Notes").unwrap();
+    let topic = engine.document_create(None, "Protein").unwrap();
+    let first = engine.document_create(Some(topic), "Notes").unwrap();
+    let second = engine.document_create(Some(topic), "Notes").unwrap();
 
     assert_ne!(first, second);
     assert!(dir.path().join("topics/protein/notes.md").is_file());
@@ -226,8 +226,7 @@ fn a_library_can_be_copied_to_another_location_and_opened() {
 
     let engine = Engine::open(destination.path()).unwrap();
     let status = engine.status().unwrap();
-    assert_eq!(status.documents, 3);
-    assert_eq!(status.topics, 2);
+    assert_eq!(status.documents, 5);
     assert!(status.problems.is_empty(), "{:?}", status.problems);
 }
 

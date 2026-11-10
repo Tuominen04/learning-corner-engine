@@ -24,7 +24,8 @@ cargo test
 cargo run --example walkthrough -- /tmp/lc-walkthrough
 ```
 
-The walkthrough builds a small library on disk — topics, linked documents, a search index it
+The walkthrough builds a small library on disk — pages with pages under them, links between
+them, a search index it
 deletes and rebuilds — so you can open the folder and see exactly what the engine writes.
 
 To use the engine from your own code, depend on it by tag:

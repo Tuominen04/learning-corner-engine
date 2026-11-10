@@ -7,7 +7,7 @@
 //! It belongs here from M0 rather than later. Retrofitting it means discovering everything
 //! that already violates it, at the point when all of it is load-bearing.
 
-use lc_engine::api::{DocumentView, Engine, TopicNode};
+use lc_engine::api::{DocumentView, Engine, PageNode};
 use lc_engine::Id;
 
 mod fixture;
@@ -17,9 +17,8 @@ use fixture::Fixture;
 /// is holding something the files do not.
 #[derive(Debug, PartialEq)]
 struct Observations {
-    topics: usize,
     documents: usize,
-    tree: Vec<TopicNode>,
+    tree: Vec<PageNode>,
     documents_read: Vec<DocumentView>,
     backlinks: Vec<(Id, Vec<String>)>,
     searches: Vec<(String, Vec<String>)>,
@@ -27,7 +26,7 @@ struct Observations {
 
 fn observe(engine: &Engine) -> Observations {
     let status = engine.status().unwrap();
-    let tree = engine.topic_tree().unwrap();
+    let tree = engine.page_tree().unwrap();
 
     let mut ids = Vec::new();
     collect_ids(&tree, &mut ids);
@@ -72,7 +71,6 @@ fn observe(engine: &Engine) -> Observations {
     .collect();
 
     Observations {
-        topics: status.topics,
         documents: status.documents,
         tree,
         documents_read,
@@ -81,9 +79,9 @@ fn observe(engine: &Engine) -> Observations {
     }
 }
 
-fn collect_ids(nodes: &[TopicNode], out: &mut Vec<Id>) {
+fn collect_ids(nodes: &[PageNode], out: &mut Vec<Id>) {
     for node in nodes {
-        out.extend(node.documents.iter().map(|d| d.id));
+        out.push(node.id);
         collect_ids(&node.children, out);
     }
 }
@@ -118,7 +116,6 @@ fn an_explicit_rebuild_changes_nothing_observable() {
 
     let summary = fixture.engine().rebuild_index().unwrap();
     assert_eq!(summary.documents, before.documents);
-    assert_eq!(summary.topics, before.topics);
 
     assert_eq!(before, observe(fixture.engine()));
 }
@@ -131,7 +128,7 @@ fn incremental_writes_agree_with_a_full_rebuild() {
     let mut fixture = Fixture::populated();
 
     let ids: Vec<Id> = {
-        let tree = fixture.engine().topic_tree().unwrap();
+        let tree = fixture.engine().page_tree().unwrap();
         let mut ids = Vec::new();
         collect_ids(&tree, &mut ids);
         ids.sort();
