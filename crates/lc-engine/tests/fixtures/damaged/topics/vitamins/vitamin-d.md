@@ -1,0 +1,8 @@
++++
+id = "01J8ZQ5X9K3M7P2R4T6V8W0Y1Z"
+title = "Vitamin D"
+created = 2026-10-02T17:08:15Z
+modified = 2026-10-02T17:08:15Z
++++
+
+From sunlight, mostly.

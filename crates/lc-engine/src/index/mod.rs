@@ -25,7 +25,7 @@ use crate::store::{Problem, Scan, Store};
 ///
 /// 2: document bodies are indexed as readable text, with citation and link markers removed.
 /// 3: works, their editions and notes, and the sources they cite.
-const INDEX_VERSION: u32 = 3;
+const INDEX_VERSION: u32 = 4;
 
 const FILE: &str = "index.sqlite";
 
@@ -86,7 +86,6 @@ pub struct Entry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
-    Topic,
     Document,
     Source,
     Work,
@@ -96,7 +95,6 @@ impl Kind {
     /// The inverse of [`Kind::as_str`], kept beside it so the two cannot drift apart.
     fn from_str(raw: &str) -> Option<Self> {
         match raw {
-            "topic" => Some(Kind::Topic),
             "document" => Some(Kind::Document),
             "source" => Some(Kind::Source),
             "work" => Some(Kind::Work),
@@ -106,7 +104,6 @@ impl Kind {
 
     fn as_str(self) -> &'static str {
         match self {
-            Kind::Topic => "topic",
             Kind::Document => "document",
             Kind::Source => "source",
             Kind::Work => "work",
@@ -115,7 +112,6 @@ impl Kind {
 
     fn parse(s: &str) -> Result<Self> {
         match s {
-            "topic" => Ok(Kind::Topic),
             "document" => Ok(Kind::Document),
             "source" => Ok(Kind::Source),
             "work" => Ok(Kind::Work),
@@ -127,7 +123,7 @@ impl Kind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hit {
     pub id: Id,
-    /// What was found. A search runs over the whole library — topics, documents and sources
+    /// What was found. A search runs over the whole library — pages and sources
     /// are all in one index — so a hit that does not say which it is cannot be drawn or acted
     /// on: opening a source is not opening a document, and the caller has no other way to
     /// tell them apart.
@@ -237,7 +233,6 @@ impl Index {
         let scan = store.scan()?;
         self.replace_with(&scan)?;
         Ok(RebuildSummary {
-            topics: scan.topics.len(),
             documents: scan.documents.len(),
             problems: scan.problems.len(),
         })
@@ -255,25 +250,6 @@ impl Index {
         // wins and the rest are skipped, so a library with a duplicate still opens and the
         // user is told which files clash.
         let mut inserted: std::collections::HashSet<Id> = std::collections::HashSet::new();
-
-        for found in &scan.topics {
-            let t = &found.entity;
-            if !inserted.insert(t.id) {
-                continue;
-            }
-            insert_entity(
-                &tx,
-                t.id,
-                Kind::Topic,
-                &found.path,
-                &t.name,
-                &t.created.to_string(),
-                &digest(t.name.as_bytes()),
-                "",
-                &found.path.join(crate::model::topic::MANIFEST),
-                &found.revision.token(),
-            )?;
-        }
 
         for found in &scan.documents {
             let d = &found.entity;
@@ -705,7 +681,6 @@ impl Index {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RebuildSummary {
-    pub topics: usize,
     pub documents: usize,
     pub problems: usize,
 }

@@ -18,6 +18,7 @@ pub mod export;
 pub mod id;
 pub mod index;
 pub mod library;
+pub mod migrate;
 pub mod model;
 pub mod store;
 pub mod timestamp;

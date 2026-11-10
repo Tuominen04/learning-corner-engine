@@ -1,0 +1,12 @@
+id = "01M40V1RMKPT8XE70HJ6S3JY6R"
+type = "book"
+title = "Белок в питании"
+publisher = "Наука"
+
+[date]
+year = 2018
+
+[[contributors]]
+role = "author"
+family = "Петров"
+given = "Алексей"

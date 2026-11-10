@@ -2,7 +2,7 @@
 
 > **Audience:** People changing the engine
 > **Status:** In progress — M3 implemented
-> **Last reviewed:** 2026-10-02
+> **Last reviewed:** 2026-11-10
 
 How this crate is put together, and the rules that keep it that way. What it is *required* to do
 is specified in the main repository; this describes the implementation.
@@ -19,7 +19,7 @@ atomic                  durable writes: temp → fsync → rename → fsync dir
         ↓
 library                 library.toml, format versions, what is reserved
         ↓
-model                   the entities: topics, documents, `+++` front matter
+model                   the entities: documents (pages), `+++` front matter; format 1's topics
         ↓
 store                   the folder tree: reading, writing, scanning, slugs
         ↓
@@ -37,7 +37,7 @@ api                     Engine — what a client calls
 | `timestamp` | Native TOML datetimes, so a hand-editing person sees a date, not a quoted string |
 | `atomic` | The durability primitive everything else writes through |
 | `library` | `library.toml`, the three format-version outcomes, `.plc/` and `.conflicts/` |
-| `model` | `Topic`, `Document`, and the front-matter parser |
+| `model` | `Document` and the front-matter parser; `Topic`, read only by `migrate` |
 | `store` | Layout, entity read/write, the scan, revisions, slugs |
 | `index` | Tables, full-text search, incremental update, rebuild |
 | `citation` | Sources, the library-wide disambiguation pass, and the APA 7 formatters |
@@ -70,7 +70,7 @@ freely while links and citations keep working.
 editor changes a body without touching front matter, so a check against `modified` would miss
 exactly the case the conflict check exists to catch.
 
-**Structural changes rebuild the index; body writes update it in place.** Moving a topic changes
+**Structural changes rebuild the index; body writes update it in place.** Moving a page changes
 the paths of everything beneath it, and working out which descendants moved is precisely the
 bookkeeping that drifts out of step with the files. Body writes are the hot path and are
 incremental. A test asserts the two agree.

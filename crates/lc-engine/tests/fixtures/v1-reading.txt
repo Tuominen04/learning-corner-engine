@@ -1,9 +1,12 @@
-library "Ravitsemus": 4 topics, 5 documents, 0 problems
+library "Ravitsemus": 9 pages, 0 problems
 
-topic "Protein" 01M40V1RFWFFGMQQ21SQZ1WJ9K
-  document "Ideas" 01M40V1RNE8CPZ26WT9V75Y3FY
+page "Protein" 01M40V1RFWFFGMQQ21SQZ1WJ9K
+  created 2026-10-03T12:15:31Z, modified 2026-10-03T12:15:31Z
+
+  page "Ideas" 01M40V1RNE8CPZ26WT9V75Y3FY
     created 2026-10-03T12:15:32Z, modified 2026-10-03T12:15:32Z
-  document "What protein is" 01M40V1RMQ6BV3ZEZFF3B30A87
+
+  page "What protein is" 01M40V1RMQ6BV3ZEZFF3B30A87
     created 2026-10-03T12:15:31Z, modified 2026-10-03T12:15:31Z
     | Protein is built from amino acids[^cite:01M40V1RG7R41CM2ET593GFG66@44]. [^cite:01M40V1RK35T3QJDE9EBJ9G32F!narrative] measured how much of it Finnish adults eat.
     | 
@@ -22,21 +25,27 @@ topic "Protein" 01M40V1RFWFFGMQQ21SQZ1WJ9K
     linked from "How protein is used"
     picture "amino-acids.png": 85 bytes
 
-  topic "In the body" 01M40V1RFZSSM1EDNH88QEFSAC
-    document "How protein is used" 01M40V1RMSYHR1CKXZZGB3VCG0
+  page "In the body" 01M40V1RFZSSM1EDNH88QEFSAC
+    created 2026-10-03T12:15:31Z, modified 2026-10-03T12:15:31Z
+
+    page "How protein is used" 01M40V1RMSYHR1CKXZZGB3VCG0
       created 2026-10-03T12:15:31Z, modified 2026-10-03T12:15:31Z
       | Used for tissue repair[^cite:01M40V1RKT03K369MMDFJJWMGN@chapter:3], and as fuel when nothing else is left[^cite:01M40V1RKZMJFNV01TDAYWD6PH@12-14]. Training raises the need[^cite:01M40V1RMEMMJJPEMCB2SG11J2@4].
       | 
       | Back to [[01M40V1RMQ6BV3ZEZFF3B30A87]].
       linked from "What protein is"
 
-topic "Vitamiinit ja kivennäisaineet" 01M40V1RG19QV79JFZZ3PXNY34
-  document "D-vitamiinin tarve" 01M40V1RN2P94C6Y6DESQSGHTA
+page "Vitamiinit ja kivennäisaineet" 01M40V1RG19QV79JFZZ3PXNY34
+  created 2026-10-03T12:15:31Z, modified 2026-10-03T12:15:31Z
+
+  page "D-vitamiinin tarve" 01M40V1RN2P94C6Y6DESQSGHTA
     created 2026-10-03T12:15:32Z, modified 2026-10-03T12:15:32Z
     | D-vitamiinia saadaan auringonvalosta ja ravinnosta[^cite:01M40V1RM87V1SJ71WQRVGX2DM]. Pohjoisessa sitä tarvitaan talvella lisää.
 
-topic "Белки" 01M40V1RG4QB8HE1VJMWSFYZGN
-  document "Белок в питании" 01M40V1RN9KBEW52TYDQW1F6DT
+page "Белки" 01M40V1RG4QB8HE1VJMWSFYZGN
+  created 2026-10-03T12:15:31Z, modified 2026-10-03T12:15:31Z
+
+  page "Белок в питании" 01M40V1RN9KBEW52TYDQW1F6DT
     created 2026-10-03T12:15:32Z, modified 2026-10-03T12:15:32Z
     | Белок важен для роста[^cite:01M40V1RMKPT8XE70HJ6S3JY6R@12-14]. Его получают из мяса, рыбы и бобовых.
 

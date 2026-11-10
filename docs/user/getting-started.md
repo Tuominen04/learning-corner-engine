@@ -2,7 +2,7 @@
 
 > **Audience:** People calling the engine from a client
 > **Status:** Implemented
-> **Last reviewed:** 2026-09-07
+> **Last reviewed:** 2026-11-10
 
 From nothing to a library with a document in it.
 
@@ -42,10 +42,11 @@ refuses a library written by a **newer** storage format rather than risking dama
 ## Write something
 
 ```rust
-let protein = engine.topic_create(None, "Protein")?;
-let in_the_body = engine.topic_create(Some(protein), "In the body")?;
+// A page at the top, and pages under it. Every entry in the tree is a page.
+let protein = engine.document_create(None, "Protein")?;
+let in_the_body = engine.document_create(Some(protein), "In the body")?;
 
-let document = engine.document_create(protein, "What protein is")?;
+let document = engine.document_create(Some(protein), "What protein is")?;
 
 let current = engine.document_read(document)?;
 engine.document_write(document, "Protein is built from amino acids.", current.revision)?;
@@ -83,7 +84,7 @@ for hit in engine.search("amino acids")? {
 
 ```rust
 let status = engine.status()?;
-println!("{} topics, {} documents", status.topics, status.documents);
+println!("{} pages, {} works", status.documents, status.works);
 
 for problem in &status.problems {
     // A file that will not parse, or two files claiming the same identifier.
@@ -102,8 +103,8 @@ find /tmp/lc-walkthrough -not -path '*/.plc/*'
 cat /tmp/lc-walkthrough/topics/protein/what-protein-is.md
 ```
 
-Plain folders mirroring the topic tree, and documents that open in any text editor. That is the
-whole point.
+Plain folders mirroring the tree of pages — `protein.md` with its sub-pages in `protein/` beside
+it — and pages that open in any text editor. That is the whole point.
 
 ## Next
 

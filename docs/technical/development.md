@@ -2,7 +2,7 @@
 
 > **Audience:** People changing the engine
 > **Status:** Implemented
-> **Last reviewed:** 2026-10-02
+> **Last reviewed:** 2026-11-10
 
 ## Toolchain
 
@@ -81,7 +81,7 @@ crates/lc-engine/
 │   ├── timestamp.rs    TOML datetimes
 │   ├── atomic.rs       durable writes
 │   ├── library.rs      library.toml and format versions
-│   ├── model/          topics, documents, front matter
+│   ├── model/          documents (pages), front matter; format 1 topics
 │   ├── store/          the folder tree, scanning, slugs
 │   ├── index/          the SQLite cache
 │   ├── citation/       sources, disambiguation, APA 7

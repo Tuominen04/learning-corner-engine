@@ -157,7 +157,7 @@ fn the_library_works_from_where_its_folder_went() {
         .unwrap();
     fixture
         .engine()
-        .topic_create(None, "Made after the move")
+        .document_create(None, "Made after the move")
         .unwrap();
     assert!(!fixture.engine().search("Written").unwrap().is_empty());
 
@@ -186,10 +186,7 @@ fn nothing_else_about_the_library_changes() {
     assert_eq!(after.created, before.created);
 
     let now = fixture.engine().status().unwrap();
-    assert_eq!(
-        (now.topics, now.documents),
-        (status.topics, status.documents)
-    );
+    assert_eq!(now.documents, status.documents);
     let reread = fixture.engine().document_read(ids.what_protein_is).unwrap();
     assert_eq!(reread.body, document.body);
     // An editor holding this revision must still be able to save once the folder has moved.

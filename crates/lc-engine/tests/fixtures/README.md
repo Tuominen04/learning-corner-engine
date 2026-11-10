@@ -6,9 +6,10 @@ its index (`.plc/`) — a fixture itself is never written to, and holds no `.plc
 
 | Library | What it is | What it proves |
 | --- | --- | --- |
-| `minimal` | `library.toml` and nothing else | An empty library opens clean, and takes its first topic and document |
+| `minimal` | `library.toml` and nothing else | An empty library opens clean, and takes its first page and one under it |
 | `damaged` | A small library broken the ways people break them | Every broken file is named, the rest opens, and nothing is rewritten |
-| `v1` | A small library in the format as M1 ships it — **frozen** | That format still opens, and reads exactly as `v1-reading.txt` records |
+| `v1` | A small library in the format as M1 ships it — **frozen** | That format is refused for writing and converted on request, and the converted library reads exactly as `v1-reading.txt` records |
+| `v2` | `v1` as this engine converts it — pages, not topics — **frozen** | Format 2 opens, writes nothing but its index, and reads as converting `v1` does |
 | `parallel` | Two works written by hand: *Я вас любил* in Russian, pronunciation, Finnish and English, with a deliberately empty row, a note, a repeated first line and an edition citing a source; and *Калинка*, its Finnish put out of line by a row added by hand | Works read as written, hand alignment survives the engine rewriting the files, and a misalignment is reported, not repaired |
 
 ## `damaged`
@@ -20,7 +21,8 @@ Each fault is one a person makes, by hand or by file manager:
 - `topics/protein/what-protein-is-copy.md`: a document copied beside itself, so two files
   claim one identifier. Both are named; the one read is whichever sorts first.
 - `sources/protein-requirements-nd.toml`: a source edited into a type there is no such thing as.
-- `topics/vitamins/topic.toml`: a topic whose own file is not TOML.
+- `topics/vitamins/`: a folder of pages whose own page, `vitamins.md`, is gone — deleted in a
+  file manager. Named, and its page is still listed, where the folder is.
 - `topics/protein/an-orphaned-citation.md`: a citation of a source that has gone. Not a broken
   file — the citation is kept as written and shows as a missing source, as in the editor.
 - `topics/protein/notes.txt`: something of the person's own beside the documents, which is
@@ -34,9 +36,15 @@ an attached paper, a picture beside its document, every form of citation, links 
 documents, and Finnish and Cyrillic in titles, folders and filenames.
 
 **It never changes.** `v1_is_exactly_as_it_was_frozen` holds a hash of its bytes, and fails if
-anything in it is edited, added or removed. When the format changes, the engine that writes the
-new format makes `v2` beside it, and `v1` stays, proving that libraries made before the change
-still open.
+anything in it is edited, added or removed. When pages replaced topics (format 2), the engine
+that converts made `v2` from it, and `v1` stays, proving that libraries made before the change
+still convert.
+
+## `v2` is frozen
+
+`v2` is `v1` converted by this engine (v0.24.0) and written out file for file, so it is exactly
+what a conversion writes: every topic a page beside its folder, an `.order` at every level. It
+never changes either: `v2_is_exactly_as_it_was_frozen` holds its hash.
 
 `v1-reading.txt` is not frozen: it is what this engine reads from `v1`. A deliberate change to
 how a library is read changes it, and is rewritten with `LC_BLESS=1` like every expected file

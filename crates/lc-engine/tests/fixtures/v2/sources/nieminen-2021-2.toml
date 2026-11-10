@@ -1,0 +1,12 @@
+id = "01M40V1RJYNGQREHAQ8AJAX4X1"
+type = "book"
+title = "Vitamiinit"
+publisher = "Otava"
+
+[date]
+year = 2021
+
+[[contributors]]
+role = "author"
+family = "Nieminen"
+given = "Anna Maria"

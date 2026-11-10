@@ -52,13 +52,20 @@ impl Fixture {
     fn populated_at(dir: tempfile::TempDir, root: &Path) -> Self {
         let mut engine = Engine::create(root, "Learning").unwrap();
 
-        let protein = engine.topic_create(None, "Protein").unwrap();
-        let in_the_body = engine.topic_create(Some(protein), "In the body").unwrap();
-
-        let what_protein_is = engine.document_create(protein, "What protein is").unwrap();
-        let types_of_protein = engine.document_create(protein, "Types of protein").unwrap();
+        // Pages appear in the order they are made, so the overview's sub-pages come first and
+        // the one with pages of its own last.
+        let protein = engine.document_create(None, "Protein").unwrap();
+        let what_protein_is = engine
+            .document_create(Some(protein), "What protein is")
+            .unwrap();
+        let types_of_protein = engine
+            .document_create(Some(protein), "Types of protein")
+            .unwrap();
+        let in_the_body = engine
+            .document_create(Some(protein), "In the body")
+            .unwrap();
         let how_used = engine
-            .document_create(in_the_body, "How protein is used")
+            .document_create(Some(in_the_body), "How protein is used")
             .unwrap();
 
         // Cross-links, so backlinks have something to derive.
