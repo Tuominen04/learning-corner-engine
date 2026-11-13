@@ -605,6 +605,31 @@ impl Index {
             .collect()
     }
 
+    /// Every `[[…]]` link in the library, as (from, to), in a fixed order. A link to an id
+    /// that is not a page is still here; what to make of it is the caller's business.
+    pub fn links(&self) -> Result<Vec<(Id, Id)>> {
+        self.pairs("SELECT from_id, to_id FROM link ORDER BY from_id, to_id")
+    }
+
+    /// Every citation in the library, as (citing document or work, source), in a fixed order.
+    pub fn citations(&self) -> Result<Vec<(Id, Id)>> {
+        self.pairs("SELECT document_id, source_id FROM citation ORDER BY document_id, source_id")
+    }
+
+    fn pairs(&self, query: &str) -> Result<Vec<(Id, Id)>> {
+        let mut stmt = self.conn.prepare(query).map_err(sql)?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(sql)?;
+        rows.map(|r| {
+            let (a, b) = r.map_err(sql)?;
+            Ok((a.parse()?, b.parse()?))
+        })
+        .collect()
+    }
+
     pub fn search(&self, query: &str) -> Result<Vec<Hit>> {
         if query.trim().is_empty() {
             return Ok(Vec::new());

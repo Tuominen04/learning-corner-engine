@@ -8,8 +8,10 @@
 //! this crate's business, and keeping it that way is what lets files be renamed and moved
 //! without anything else having to know.
 
+mod graph;
 mod works;
 
+pub use graph::{GraphLine, GraphNode, LibraryGraph, LineKind, NodeKind};
 pub use works::{
     EditionContents, EditionView, ResegmentPlan, Resegmented, WorkContents, WorkSummary, WorkView,
 };
@@ -1120,8 +1122,9 @@ impl Engine {
 
     // ---- later milestones ------------------------------------------------------
 
-    pub fn map_read(&self) -> Result<()> {
-        Err(Error::Unimplemented("map.read"))
+    /// M4b, ADR 0011: diagrams, which replace the maps the contract first planned.
+    pub fn diagram_read(&self) -> Result<()> {
+        Err(Error::Unimplemented("diagram.read"))
     }
 
     // ---- backup ----------------------------------------------------------------
