@@ -599,10 +599,10 @@ fn operations_from_later_milestones_are_named_and_unimplemented() {
     let mut fixture = Fixture::populated();
 
     // source_create and citation_format stood here until M1 filled them in, backup_plan until
-    // M2 and work_create until M3, which is the point of the pattern: a body changed, and no
+    // M2, work_create until M3 and map_read until M4a made it diagram_read, which is the point of the pattern: a body changed, and no
     // client broke.
     assert!(matches!(
-        fixture.engine().map_read(),
+        fixture.engine().diagram_read(),
         Err(Error::Unimplemented(_))
     ));
 }

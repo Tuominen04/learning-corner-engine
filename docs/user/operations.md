@@ -1,8 +1,8 @@
 # Operations
 
 > **Audience:** People calling the engine from a client
-> **Status:** In progress — M3 and pages (format 2) implemented
-> **Last reviewed:** 2026-11-10
+> **Status:** In progress — M3, pages (format 2) and the library graph implemented
+> **Last reviewed:** 2026-11-13
 
 Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
 milestones already exist and return `Unimplemented`, so a client can be written against the whole
@@ -242,6 +242,24 @@ Citations are written as APA 7 sets them, which the editor's separate chips do n
 
 The reference list follows the writing, disambiguated against the whole library.
 
+## The library graph
+
+| Call | Does |
+| --- | --- |
+| `library_graph(sources)` | Every page, and with `sources` every source, as nodes, with the lines between them |
+
+For the graph screen ([ADR 0010](https://github.com/Tuominen04/learning-corner/blob/main/docs/technical/adr/0010-library-graph.md)).
+Everything is computed from the index on each call, and nothing is written.
+
+- **Nodes:** pages in the order of the tree, each before the pages under it, then sources by
+  title. A page's `top` is the page at the top of the tree it is under (itself, at the top) —
+  what to colour by. A source's is `None`.
+- **Lines:** `LinksTo` for `[[id]]` in a page, `Under` from a page to the page it is directly
+  under, and `Cites` from a page to a source, once however often it is cited. Every line joins
+  two nodes that are on the graph: a link to an id that names no page, a page linking to
+  itself, and a work's citations draw no line.
+- **Where anything goes is not the engine's.** No positions are returned or kept.
+
 ## Search
 
 | Call | Does |
@@ -341,7 +359,7 @@ These exist and return `Unimplemented`:
 
 | Call | Arrives in |
 | --- | --- |
-| `map_read` | M4 — mind maps |
+| `diagram_read` | M4b — diagrams ([ADR 0011](https://github.com/Tuominen04/learning-corner/blob/main/docs/technical/adr/0011-diagrams.md)) |
 
 ---
 
