@@ -81,9 +81,11 @@ sources, and misalignment shown rather than hidden.
 **Pages** (format 2): one kind of thing in the tree, a page that can have pages under it, in
 the person's order; format 1 libraries converted after a copy is kept.
 
+**M4b — diagrams**: family trees, timelines and network maps made by hand, in a file of their
+own each; a box can point at a page, and a page shows a diagram by reference.
+
 **M4a — the library graph**: every page, and optionally every source, with the lines between
-them — links, the tree, citations — computed from the index and stored nowhere. Diagrams are
-M4b.
+them — links, the tree, citations — computed from the index and stored nowhere.
 
 Operations belonging to later milestones already exist and report themselves as unimplemented,
 so a client can be written against the whole surface now.

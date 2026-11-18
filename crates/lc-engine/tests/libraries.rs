@@ -514,3 +514,99 @@ fn v2_reads_as_v1_converted_does() {
     let (_dir, engine) = open("v2");
     expect_file("v1-reading.txt", &reading(&engine));
 }
+
+// ---- diagrams: frozen --------------------------------------------------------------------
+
+/// What `tests/fixtures/diagrams` held when it was frozen: the format as diagrams first shipped
+/// it (ADR 0011) — one of each layout, and pages showing them. Made by the engine itself.
+const DIAGRAMS_FROZEN: &str = "44545a81f099c8017c54a9049588f0c0c3d97fbd32e97c70fb0115f4d9fa568e";
+
+#[test]
+fn diagrams_is_exactly_as_it_was_frozen() {
+    let hash = frozen_hash("diagrams");
+    assert_eq!(
+        hash, DIAGRAMS_FROZEN,
+        "tests/fixtures/diagrams has changed. It is frozen: it is the library as diagrams first \
+         shipped. Put it back as it was, and make a new fixture for a new format."
+    );
+}
+
+#[test]
+fn opening_diagrams_writes_nothing_but_its_index() {
+    let (dir, engine) = open("diagrams");
+    assert!(engine.status().unwrap().problems.is_empty());
+    assert!(engine.status().unwrap().writable);
+    assert_eq!(files(dir.path()), files(&fixture("diagrams")));
+}
+
+#[test]
+fn the_diagrams_fixture_reads_as_it_was_written() {
+    use lc_engine::model::diagram::{Direction, Layout};
+
+    let (_dir, engine) = open("diagrams");
+    let list = engine.diagram_list().unwrap();
+    assert_eq!(
+        list.iter()
+            .map(|d| (d.title.as_str(), d.layout))
+            .collect::<Vec<_>>(),
+        [
+            ("Family tree", Layout::Layered),
+            ("Network", Layout::Free),
+            ("Timeline", Layout::Timeline),
+        ]
+    );
+    let by = |title: &str| list.iter().find(|d| d.title == title).unwrap().id;
+
+    // The family tree: a label, two pages, and a box whose page has gone — kept, and said so.
+    let tree = engine.diagram_read(by("Family tree")).unwrap();
+    assert_eq!(tree.direction, Direction::Down);
+    assert_eq!(tree.nodes.len(), 4);
+    assert_eq!(tree.lines.len(), 3);
+    let titles: Vec<Option<&str>> = tree
+        .nodes
+        .iter()
+        .map(|n| n.page.as_ref().and_then(|p| p.title.as_deref()))
+        .collect();
+    assert_eq!(titles, [None, Some("Type 1"), Some("Subject"), None]);
+    assert!(tree.nodes[3].page.is_some() && tree.nodes[0].page.is_none());
+
+    // The timeline keeps dates in the person's own words.
+    let timeline = engine.diagram_read(by("Timeline")).unwrap();
+    let when: Vec<_> = timeline
+        .nodes
+        .iter()
+        .map(|n| n.when.as_deref().unwrap())
+        .collect();
+    assert_eq!(when, ["c. 1200", "1850", "the late Bronze Age"]);
+
+    // The network keeps where its boxes were put.
+    let network = engine.diagram_read(by("Network")).unwrap();
+    assert_eq!(
+        network.nodes.iter().map(|n| (n.x, n.y)).collect::<Vec<_>>(),
+        [(Some(0.0), Some(0.0)), (Some(-120.5), Some(60.0))]
+    );
+
+    // Pages show them, and one page shows two.
+    let shown = |id| {
+        engine
+            .diagram_shown_in(id)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.title)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(shown(by("Family tree")), ["Subject"]);
+    assert_eq!(shown(by("Timeline")), ["History"]);
+    assert_eq!(shown(by("Network")), ["History"]);
+
+    // And they are found by what their boxes say.
+    assert!(
+        engine.search("bronze").unwrap().is_empty(),
+        "a box's date is not searched"
+    );
+    assert!(engine
+        .search("mother")
+        .unwrap()
+        .iter()
+        .any(|h| h.title == "Family tree"));
+}

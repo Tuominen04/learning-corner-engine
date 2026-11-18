@@ -24,7 +24,12 @@ echo "Checking relative links…"
 links=$(mktemp)
 for f in $docs README.md; do
   dir=$(dirname "$f")
-  grep -o '](\([^)]*\))' "$f" 2>/dev/null | sed 's/^](//; s/)$//' \
+  # Code first, then links: an example of a file format's own syntax, like
+  # `![alt](diagram:<id>)`, is not a link to check. Fenced blocks and `inline spans` are
+  # dropped before anything is extracted.
+  awk '/^```/ { fenced = !fenced; next } !fenced' "$f" 2>/dev/null \
+  | sed 's/`[^`]*`//g' \
+  | grep -o '](\([^)]*\))' | sed 's/^](//; s/)$//' \
   | while read -r target; do
       case "$target" in http*|mailto:*|'#'*|'') continue ;; esac
       target=${target%%#*}

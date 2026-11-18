@@ -78,6 +78,13 @@ impl Document {
         crate::citation::reference::parse_all(&self.body)
     }
 
+    /// Diagrams this document shows, each once, as `![alt](diagram:<id>)` lines (ADR 0011).
+    ///
+    /// Derived on demand and never stored, like [`Document::links`].
+    pub fn diagrams(&self) -> Vec<Id> {
+        super::diagram::shown_in(&self.body)
+    }
+
     /// Images this document shows, in order, as written in the body.
     ///
     /// Each is a plain filename beside the document — `![Diagram](muscle-repair.png)` — never a
@@ -100,7 +107,13 @@ impl Document {
             let is_image = before
                 .rfind('[')
                 .is_some_and(|open| before[..open].ends_with('!'));
-            if is_image && !name.is_empty() && !found.contains(&name.to_string()) {
+            // `diagram:<id>` is a picture line too, but it names a diagram, not a file beside
+            // the page: nothing to move, copy or draw from disk.
+            if is_image
+                && !name.is_empty()
+                && !name.starts_with(super::diagram::ADDRESS)
+                && !found.contains(&name.to_string())
+            {
                 found.push(name.to_string());
             }
         }
@@ -119,7 +132,11 @@ impl Document {
     /// Each marker becomes a single space rather than nothing, so `tissue.[^cite:01J8…] The`
     /// does not come back as `tissue.The`.
     pub fn searchable_text(&self) -> String {
-        strip_between(&strip_between(&self.body, "[^cite:", "]"), "[[", "]]")
+        super::diagram::without_addresses(&strip_between(
+            &strip_between(&self.body, "[^cite:", "]"),
+            "[[",
+            "]]",
+        ))
     }
 }
 
@@ -183,6 +200,16 @@ mod tests {
         );
         // Ordinary links stay out, an empty alt is still an image, and a repeat is one file.
         assert_eq!(doc.images(), vec!["muscle-repair.png", "no-alt.jpg"]);
+    }
+
+    #[test]
+    fn a_diagram_line_is_a_diagram_and_not_a_file_beside_the_page() {
+        let diagram = Id::new();
+        let doc = body(&format!(
+            "![Tree](diagram:{diagram}) and ![Photo](photo.png)"
+        ));
+        assert_eq!(doc.images(), vec!["photo.png"]);
+        assert_eq!(doc.diagrams(), vec![diagram]);
     }
 
     #[test]

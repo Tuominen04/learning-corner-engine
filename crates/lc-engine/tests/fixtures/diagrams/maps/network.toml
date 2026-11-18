@@ -1,0 +1,22 @@
+id = "01M7R2CWAK9SF0KZG9CJ39N2NX"
+title = "Network"
+layout = "free"
+direction = "down"
+created = 2026-11-18T19:33:33Z
+
+[[node]]
+id = "01M7R2CWAZ6YDGKMJBV5GN0KSG"
+label = "Hub"
+x = 0.0
+y = 0.0
+
+[[node]]
+id = "01M7R2CWAZJ3BZ42Z6E89WHKBH"
+page = "01M7R2CWA9KDXGEB4APCBVS1RH"
+x = -120.5
+y = 60.0
+
+[[line]]
+from = "01M7R2CWAZ6YDGKMJBV5GN0KSG"
+to = "01M7R2CWAZJ3BZ42Z6E89WHKBH"
+label = "connects to"

@@ -1,0 +1,25 @@
+id = "01M7R2CWAGGPNPVZ2FTTBS5A4F"
+title = "Timeline"
+layout = "timeline"
+direction = "down"
+created = 2026-11-18T19:33:33Z
+
+[[node]]
+id = "01M7R2CWATA0K9D83PG8W0TNED"
+label = "Founded"
+when = "c. 1200"
+
+[[node]]
+id = "01M7R2CWAT54SXSBQZBEB86X37"
+page = "01M7R2CWA2D1FK6S0DPQFF25ZJ"
+when = "1850"
+
+[[node]]
+id = "01M7R2CWATG35WB3CZ9H1YP382"
+label = "The long quiet"
+when = "the late Bronze Age"
+
+[[line]]
+from = "01M7R2CWATA0K9D83PG8W0TNED"
+to = "01M7R2CWAT54SXSBQZBEB86X37"
+label = "led to"

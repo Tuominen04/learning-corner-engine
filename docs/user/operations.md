@@ -1,12 +1,10 @@
 # Operations
 
 > **Audience:** People calling the engine from a client
-> **Status:** In progress — M3, pages (format 2) and the library graph implemented
-> **Last reviewed:** 2026-11-13
+> **Status:** In progress — M3, pages (format 2), the library graph and diagrams implemented
+> **Last reviewed:** 2026-11-18
 
-Everything `Engine` offers. The shape of this surface is fixed: operations belonging to later
-milestones already exist and return `Unimplemented`, so a client can be written against the whole
-contract now and filling one in later changes a body rather than a signature.
+Everything `Engine` offers.
 
 Four rules hold everywhere:
 
@@ -353,13 +351,50 @@ An edition whose row count differs from the original's — after a join or split
 corresponding is not something the engine can know, so it never shifts a line to make the
 counts agree.
 
-## Later milestones
+## Diagrams
 
-These exist and return `Unimplemented`:
-
-| Call | Arrives in |
+| Call | Does |
 | --- | --- |
-| `diagram_read` | M4b — diagrams ([ADR 0011](https://github.com/Tuominen04/learning-corner/blob/main/docs/technical/adr/0011-diagrams.md)) |
+| `diagram_list()` | Every diagram, by title: id, title, layout |
+| `diagram_create(title, layout)` | An empty diagram — `Layered`, `Timeline` or `Free` — in a file of its own in `maps/` |
+| `diagram_read(id)` | The diagram, each box with what its page is called now (`title` is `None` when the page is gone), and the revision to write with |
+| `diagram_write(id, diagram, revision)` | Saves the whole diagram, or `Conflict` if the file changed. A new title renames the file; `created` is kept |
+| `diagram_shown_in(id)` | The pages that show it |
+| `diagram_delete_plan(id)` / `diagram_delete(id)` | The pages whose line for it would go, then deleting it and those lines |
+| `document_diagrams(page)` | The diagrams a page shows, and the diagrams with a box pointing at it |
+
+For the diagrams screen ([ADR 0011](https://github.com/Tuominen04/learning-corner/blob/main/docs/technical/adr/0011-diagrams.md)).
+A diagram is `maps/<name>.toml`: its boxes (`[[node]]`) and lines (`[[line]]`). A box has its own
+`id`, and may point at a `page`, say a `label` (which wins over the page's title), carry a `when`
+(text, for a timeline) and an `x` and `y` (both, for a free diagram). Nothing about a page is
+copied into a diagram, and the engine never reads a page's text for one.
+
+- **Strict about structure, not about pages.** A diagram is refused if a box says nothing and
+  points at nothing, two boxes share an identifier, a line joins a box that is not there or
+  joins a box to itself, or a position is half given or not a number. A box may point at a page
+  that does not exist, because that is how a deleted page leaves a diagram — it must stay
+  saveable — but not at something that is not a page.
+- **Deleting a page never touches a diagram.** The box stays where it was, its `title` `None`,
+  so a family tree does not fall apart.
+- **A page shows a diagram with a picture line** — ordinary Markdown picture syntax, with
+  `diagram:` and the diagram's identifier for the address:
+
+  ```markdown
+  ![Family tree](diagram:01J8ZQ7B2N4Q6S8W0W2Y4A6C8E)
+  ```
+
+  Deleting a diagram takes those lines out of the pages that show it — the line alone when it
+  has a line to itself, with the blank line it would leave doubled; just the picture when it is
+  in a sentence — and touches nothing else a page says. Pages are written first and the file
+  last, so an interruption leaves a diagram that some pages no longer show.
+- **To everything that only knows pages, the line is text.** It is not a picture file, so it
+  is not moved or copied with a page; it goes with a section that is split out; a document
+  exports it as `[Picture: alt]`; and the search index keeps the alt text and not the address.
+- **A diagram is found by its title and by what its boxes say**, not by a page's title, nor by
+  a `when`.
+- **A file gone wrong by hand** is a problem with the library, named, and the rest opens.
+- **No new format version.** `maps/` has been in the layout since format 1, and an older engine
+  leaves it alone: it does not read it, and a backup copies it like any other folder.
 
 ---
 
