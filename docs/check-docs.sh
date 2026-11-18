@@ -27,7 +27,7 @@ for f in $docs README.md; do
   # Code first, then links: an example of a file format's own syntax, like
   # `![alt](diagram:<id>)`, is not a link to check. Fenced blocks and `inline spans` are
   # dropped before anything is extracted.
-  awk '/^```/ { fenced = !fenced; next } !fenced' "$f" 2>/dev/null \
+  awk '/^[[:space:]]*```/ { fenced = !fenced; next } !fenced' "$f" 2>/dev/null \
   | sed 's/`[^`]*`//g' \
   | grep -o '](\([^)]*\))' | sed 's/^](//; s/)$//' \
   | while read -r target; do
