@@ -10,6 +10,7 @@ its index (`.plc/`) — a fixture itself is never written to, and holds no `.plc
 | `damaged` | A small library broken the ways people break them | Every broken file is named, the rest opens, and nothing is rewritten |
 | `v1` | A small library in the format as M1 ships it — **frozen** | That format is refused for writing and converted on request, and the converted library reads exactly as `v1-reading.txt` records |
 | `v2` | `v1` as this engine converts it — pages, not topics — **frozen** | Format 2 opens, writes nothing but its index, and reads as converting `v1` does |
+| `diagrams` | A library made by the engine with one diagram of each layout — a *Family tree* (layered, with a box whose page has gone), a *Timeline* (dates in words, one not a date) and a *Network* (boxes placed by hand) — and pages showing them, one page two — **frozen** | Diagrams read as written, a diagram line is only text to a page, and opening writes nothing but the index |
 | `parallel` | Two works written by hand: *Я вас любил* in Russian, pronunciation, Finnish and English, with a deliberately empty row, a note, a repeated first line and an edition citing a source; and *Калинка*, its Finnish put out of line by a row added by hand | Works read as written, hand alignment survives the engine rewriting the files, and a misalignment is reported, not repaired |
 
 ## `damaged`
@@ -45,6 +46,13 @@ still convert.
 `v2` is `v1` converted by this engine (v0.24.0) and written out file for file, so it is exactly
 what a conversion writes: every topic a page beside its folder, an `.order` at every level. It
 never changes either: `v2_is_exactly_as_it_was_frozen` holds its hash.
+
+## `diagrams` is frozen
+
+`diagrams` was made by the engine itself (v0.26.0), through its own operations, so every file is
+exactly what it writes: three diagrams in `maps/`, and pages whose text shows them with
+`![alt](diagram:<id>)`. It is format 2, unchanged: `maps/` has been in the layout since format 1.
+It never changes: `diagrams_is_exactly_as_it_was_frozen` holds its hash.
 
 `v1-reading.txt` is not frozen: it is what this engine reads from `v1`. A deliberate change to
 how a library is read changes it, and is rewritten with `LC_BLESS=1` like every expected file

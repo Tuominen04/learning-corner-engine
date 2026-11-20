@@ -590,23 +590,6 @@ fn a_write_with_a_stale_revision_is_refused() {
     ));
 }
 
-// ---- later milestones ----------------------------------------------------------
-
-#[test]
-fn operations_from_later_milestones_are_named_and_unimplemented() {
-    // Present in the surface so the interface can be written against the whole contract, and
-    // so filling them in later is a body change rather than a shape change.
-    let mut fixture = Fixture::populated();
-
-    // source_create and citation_format stood here until M1 filled them in, backup_plan until
-    // M2, work_create until M3 and map_read until M4a made it diagram_read, which is the point of the pattern: a body changed, and no
-    // client broke.
-    assert!(matches!(
-        fixture.engine().diagram_read(),
-        Err(Error::Unimplemented(_))
-    ));
-}
-
 #[test]
 fn a_revision_survives_being_carried_through_serialisation() {
     // The interface holds a revision between a read and a write, so it has to round-trip.

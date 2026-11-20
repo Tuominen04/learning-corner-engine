@@ -25,7 +25,7 @@ use crate::store::{Problem, Scan, Store};
 ///
 /// 2: document bodies are indexed as readable text, with citation and link markers removed.
 /// 3: works, their editions and notes, and the sources they cite.
-const INDEX_VERSION: u32 = 4;
+const INDEX_VERSION: u32 = 5;
 
 const FILE: &str = "index.sqlite";
 
@@ -64,6 +64,22 @@ CREATE TABLE citation (
 );
 CREATE INDEX citation_source ON citation(source_id);
 
+-- Which pages show which diagrams: `![…](diagram:<id>)` in a page's text.
+CREATE TABLE shown (
+    document_id TEXT NOT NULL,
+    diagram_id  TEXT NOT NULL,
+    PRIMARY KEY (document_id, diagram_id)
+);
+CREATE INDEX shown_diagram ON shown(diagram_id);
+
+-- Which pages a diagram's boxes point at.
+CREATE TABLE diagram_page (
+    diagram_id TEXT NOT NULL,
+    page_id    TEXT NOT NULL,
+    PRIMARY KEY (diagram_id, page_id)
+);
+CREATE INDEX diagram_page_page ON diagram_page(page_id);
+
 CREATE TABLE problem (
     path     TEXT NOT NULL,
     message  TEXT NOT NULL,
@@ -89,6 +105,7 @@ pub enum Kind {
     Document,
     Source,
     Work,
+    Diagram,
 }
 
 impl Kind {
@@ -98,6 +115,7 @@ impl Kind {
             "document" => Some(Kind::Document),
             "source" => Some(Kind::Source),
             "work" => Some(Kind::Work),
+            "diagram" => Some(Kind::Diagram),
             _ => None,
         }
     }
@@ -107,6 +125,7 @@ impl Kind {
             Kind::Document => "document",
             Kind::Source => "source",
             Kind::Work => "work",
+            Kind::Diagram => "diagram",
         }
     }
 
@@ -115,6 +134,7 @@ impl Kind {
             "document" => Ok(Kind::Document),
             "source" => Ok(Kind::Source),
             "work" => Ok(Kind::Work),
+            "diagram" => Ok(Kind::Diagram),
             other => Err(Error::library(format!("unknown entity kind {other:?}"))),
         }
     }
@@ -240,7 +260,15 @@ impl Index {
 
     fn replace_with(&mut self, scan: &Scan) -> Result<()> {
         let tx = self.conn.transaction().map_err(sql)?;
-        for table in ["entity", "entity_fts", "link", "citation", "problem"] {
+        for table in [
+            "entity",
+            "entity_fts",
+            "link",
+            "citation",
+            "shown",
+            "diagram_page",
+            "problem",
+        ] {
             tx.execute(&format!("DELETE FROM {table}"), [])
                 .map_err(sql)?;
         }
@@ -282,6 +310,13 @@ impl Index {
                 )
                 .map_err(sql)?;
             }
+            for diagram in d.diagrams() {
+                tx.execute(
+                    "INSERT OR IGNORE INTO shown (document_id, diagram_id) VALUES (?1, ?2)",
+                    params![d.id().to_string(), diagram.to_string()],
+                )
+                .map_err(sql)?;
+            }
         }
 
         for found in &scan.sources {
@@ -303,6 +338,33 @@ impl Index {
                 &found.path,
                 &found.revision.token(),
             )?;
+        }
+
+        for found in &scan.diagrams {
+            let diagram = &found.entity;
+            if !inserted.insert(diagram.id) {
+                continue;
+            }
+            let text = diagram.searchable_text();
+            insert_entity(
+                &tx,
+                diagram.id,
+                Kind::Diagram,
+                &found.path,
+                &diagram.title,
+                &diagram.created.to_string(),
+                &digest(text.as_bytes()),
+                &text,
+                &found.path,
+                &found.revision.token(),
+            )?;
+            for page in diagram.pages() {
+                tx.execute(
+                    "INSERT OR IGNORE INTO diagram_page (diagram_id, page_id) VALUES (?1, ?2)",
+                    params![diagram.id.to_string(), page.to_string()],
+                )
+                .map_err(sql)?;
+            }
         }
 
         for found in &scan.works {
@@ -368,6 +430,7 @@ impl Index {
             ("entity_fts", "id"),
             ("link", "from_id"),
             ("citation", "document_id"),
+            ("shown", "document_id"),
         ] {
             tx.execute(
                 &format!("DELETE FROM {table} WHERE {column} = ?1"),
@@ -399,6 +462,13 @@ impl Index {
             tx.execute(
                 "INSERT OR IGNORE INTO citation (document_id, source_id) VALUES (?1, ?2)",
                 params![id, source.to_string()],
+            )
+            .map_err(sql)?;
+        }
+        for diagram in d.diagrams() {
+            tx.execute(
+                "INSERT OR IGNORE INTO shown (document_id, diagram_id) VALUES (?1, ?2)",
+                params![id, diagram.to_string()],
             )
             .map_err(sql)?;
         }
@@ -466,6 +536,8 @@ impl Index {
             ("entity_fts", "id"),
             ("link", "from_id"),
             ("citation", "document_id"),
+            ("shown", "document_id"),
+            ("diagram_page", "diagram_id"),
         ] {
             tx.execute(
                 &format!("DELETE FROM {table} WHERE {column} = ?1"),
@@ -628,6 +700,39 @@ impl Index {
             Ok((a.parse()?, b.parse()?))
         })
         .collect()
+    }
+
+    /// Pages that show a diagram, derived from `![…](diagram:<id>)` in their text.
+    pub fn pages_showing(&self, diagram: Id) -> Result<Vec<Id>> {
+        self.ids(
+            "SELECT document_id FROM shown WHERE diagram_id = ?1 ORDER BY document_id",
+            diagram,
+        )
+    }
+
+    /// Diagrams a page shows.
+    pub fn diagrams_shown_on(&self, page: Id) -> Result<Vec<Id>> {
+        self.ids(
+            "SELECT diagram_id FROM shown WHERE document_id = ?1 ORDER BY diagram_id",
+            page,
+        )
+    }
+
+    /// Diagrams with a box that points at a page.
+    pub fn diagrams_pointing_at(&self, page: Id) -> Result<Vec<Id>> {
+        self.ids(
+            "SELECT diagram_id FROM diagram_page WHERE page_id = ?1 ORDER BY diagram_id",
+            page,
+        )
+    }
+
+    fn ids(&self, query: &str, id: Id) -> Result<Vec<Id>> {
+        let mut stmt = self.conn.prepare(query).map_err(sql)?;
+        let rows = stmt
+            .query_map(params![id.to_string()], |row| row.get::<_, String>(0))
+            .map_err(sql)?;
+        rows.map(|r| r.map_err(sql).and_then(|s| s.parse()))
+            .collect()
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<Hit>> {

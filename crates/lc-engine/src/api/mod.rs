@@ -1,16 +1,17 @@
 //! The operations the interface calls.
 //!
-//! This is the M0 subset of `backend-contract.md`. Operations belonging to later milestones
-//! are present and return [`Error::Unimplemented`], so the shape of the surface is fixed now
-//! and the interface can be written against the whole of it.
+//! Everything of `backend-contract.md` the application calls: libraries, pages, sources and
+//! citations, works, backup, export, the library graph and diagrams.
 //!
 //! Every operation takes identifiers, never paths inside a library: where an entity lives is
 //! this crate's business, and keeping it that way is what lets files be renamed and moved
 //! without anything else having to know.
 
+mod diagrams;
 mod graph;
 mod works;
 
+pub use diagrams::{DiagramSummary, DiagramView, NodeView, PageDiagrams, PageLink};
 pub use graph::{GraphLine, GraphNode, LibraryGraph, LineKind, NodeKind};
 pub use works::{
     EditionContents, EditionView, ResegmentPlan, Resegmented, WorkContents, WorkSummary, WorkView,
@@ -1118,13 +1119,6 @@ impl Engine {
             export::Format::Odt => export::odt::write(&model).map_err(|e| together(&e))?,
             export::Format::Pdf => export::pdf::write(&model).map_err(|e| together(&e))?,
         })
-    }
-
-    // ---- later milestones ------------------------------------------------------
-
-    /// M4b, ADR 0011: diagrams, which replace the maps the contract first planned.
-    pub fn diagram_read(&self) -> Result<()> {
-        Err(Error::Unimplemented("diagram.read"))
     }
 
     // ---- backup ----------------------------------------------------------------

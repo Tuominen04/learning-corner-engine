@@ -129,6 +129,10 @@ impl Revision {
     }
 }
 
+/// Where diagrams are kept: one TOML file each, directly in this folder (ADR 0011). The folder
+/// has been part of the layout since format 1, under the name maps/, and keeps it.
+pub const MAPS_DIR: &str = "maps";
+
 /// One entity found by a scan, with the path it was found at, relative to the library root.
 #[derive(Debug, Clone)]
 pub struct Found<T> {
@@ -152,6 +156,7 @@ pub struct Problem {
 pub struct Scan {
     pub documents: Vec<Found<Document>>,
     pub sources: Vec<Found<crate::citation::Source>>,
+    pub diagrams: Vec<Found<crate::model::Diagram>>,
     pub works: Vec<FoundWork>,
     pub problems: Vec<Problem>,
 }
@@ -330,6 +335,68 @@ impl Store {
         atomic::remove(&self.absolute(path))
     }
 
+    // ---- diagrams --------------------------------------------------------------
+
+    pub fn read_diagram(&self, path: &Path) -> Result<Found<crate::model::Diagram>> {
+        let absolute = self.absolute(path);
+        let text = fs::read_to_string(&absolute).ctx(format!("reading {}", absolute.display()))?;
+        let entity = crate::model::Diagram::parse(&text)
+            .map_err(|e| Error::library(format!("{}: {e}", path.display())))?;
+        Ok(Found {
+            entity,
+            path: path.to_path_buf(),
+            revision: Revision::of(&absolute)?,
+        })
+    }
+
+    pub fn write_diagram(&self, path: &Path, entity: &crate::model::Diagram) -> Result<Revision> {
+        let absolute = self.absolute(path);
+        atomic::write(&absolute, &entity.to_toml()?)?;
+        Revision::of(&absolute)
+    }
+
+    pub fn remove_diagram(&self, path: &Path) -> Result<()> {
+        atomic::remove(&self.absolute(path))
+    }
+
+    /// Every `*.toml` directly in `maps/`, in name order.
+    pub fn diagram_files(&self) -> Result<Vec<PathBuf>> {
+        let dir = PathBuf::from(MAPS_DIR);
+        let absolute = self.absolute(&dir);
+        if !absolute.exists() {
+            return Ok(Vec::new());
+        }
+        let mut files = Vec::new();
+        for entry in fs::read_dir(&absolute).ctx(format!("listing {}", absolute.display()))? {
+            let entry = entry.ctx(format!("listing {}", absolute.display()))?;
+            let relative = dir.join(entry.file_name());
+            if entry
+                .file_type()
+                .ctx("reading a directory entry")?
+                .is_file()
+                && relative.extension().and_then(|e| e.to_str()) == Some("toml")
+            {
+                files.push(relative);
+            }
+        }
+        files.sort();
+        Ok(files)
+    }
+
+    fn walk_diagrams(&self, scan: &mut Scan) -> Result<()> {
+        for path in self.diagram_files()? {
+            match self.read_diagram(&path) {
+                Ok(found) => scan.diagrams.push(found),
+                Err(e) => scan.problems.push(Problem {
+                    message: e.to_string(),
+                    revision: revision_token(&self.absolute(&path)),
+                    path,
+                }),
+            }
+        }
+        Ok(())
+    }
+
     // ---- source files ----------------------------------------------------------
 
     /// Where a stored source file lives, as an absolute path.
@@ -505,6 +572,9 @@ impl Store {
         if self.root.join(SOURCES_DIR).exists() {
             self.walk_sources(&mut scan)?;
         }
+        if self.root.join(MAPS_DIR).exists() {
+            self.walk_diagrams(&mut scan)?;
+        }
         if self.root.join(WORKS_DIR).exists() {
             self.walk_works(&mut scan)?;
         }
@@ -524,6 +594,9 @@ impl Store {
         }
         if self.root.join(SOURCES_DIR).exists() {
             self.walk_signature(&PathBuf::from(SOURCES_DIR), &mut out)?;
+        }
+        for path in self.diagram_files()? {
+            out.insert(path.clone(), Revision::of(&self.absolute(&path))?.token());
         }
         for dir in self.work_dirs()? {
             out.insert(
@@ -711,7 +784,8 @@ fn detect_duplicate_ids(scan: &mut Scan) {
             scan.works
                 .iter()
                 .map(|f| (f.work.manifest.id, f.path.clone())),
-        );
+        )
+        .chain(scan.diagrams.iter().map(|f| (f.entity.id, f.path.clone())));
 
     for (id, path) in all {
         if let Some((_, first)) = seen.iter().find(|(seen_id, _)| *seen_id == id) {
