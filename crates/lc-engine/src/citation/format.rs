@@ -18,12 +18,15 @@ pub enum Form {
     Narrative,
 }
 
-/// A page, paragraph, chapter or timestamp, as the user typed it.
+/// A page, paragraph, chapter, section or timestamp, as the user typed it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Locator {
     Page(String),
     Paragraph(String),
     Chapter(String),
+    /// A heading in the source, by name: what APA 7 §8.13 gives for a web page or any other
+    /// source with no page numbers — `Methods section`.
+    Section(String),
     Timestamp(String),
 }
 
@@ -38,8 +41,24 @@ impl Locator {
             }
             Locator::Paragraph(v) => format!("para. {v}"),
             Locator::Chapter(v) => format!("Chapter {v}"),
+            Locator::Section(v) => section_text(v),
             Locator::Timestamp(v) => v.clone(),
         }
+    }
+}
+
+/// A section as it reads in a citation: the heading, and the word *section* after it.
+///
+/// Said once. A heading typed with the word already in it — `Methods section`, `Section 3` — is
+/// printed as typed, and not as `Methods section section` or `Section 3 section`.
+fn section_text(value: &str) -> String {
+    let value = value.trim();
+    let says = |word: Option<&str>| word.is_some_and(|w| w.eq_ignore_ascii_case("section"));
+    let mut words = value.split_whitespace();
+    if says(words.next()) || says(value.split_whitespace().next_back()) {
+        value.to_string()
+    } else {
+        format!("{value} section")
     }
 }
 

@@ -698,9 +698,10 @@ fn citation_at(s: &str) -> Option<(usize, CitationRef)> {
 /// `!` or `:`. Never empty.
 fn locator_at(s: &str) -> Option<(Locator, usize)> {
     type Kind = fn(String) -> Locator;
-    let kinds: [(&str, Kind); 3] = [
+    let kinds: [(&str, Kind); 4] = [
         ("para:", Locator::Paragraph),
         ("chapter:", Locator::Chapter),
+        ("section:", Locator::Section),
         ("time:", Locator::Timestamp),
     ];
     for (kind, make) in kinds {
@@ -1011,6 +1012,12 @@ mod tests {
                 "[^cite:{SOURCE}@para:7] and [^cite:{SOURCE}@chapter:3]"
             )),
             "(p Paragraph(\"7\")) and (p Chapter(\"3\"))"
+        );
+        assert_eq!(
+            read(&format!(
+                "[^cite:{SOURCE}@section:Methods and results!narrative]"
+            )),
+            "(n Section(\"Methods and results\"))"
         );
     }
 

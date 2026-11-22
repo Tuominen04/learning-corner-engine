@@ -129,6 +129,7 @@ A citation can also say **where** in the source, and **how** the sentence uses i
 | `[^cite:<id>@44-46]` | `(Nieminen, 2021, pp. 44–46)` |
 | `[^cite:<id>@para:7]` | `(Nieminen, 2021, para. 7)` |
 | `[^cite:<id>@chapter:3]` | `(Nieminen, 2021, Chapter 3)` |
+| `[^cite:<id>@section:Methods]` | `(Nieminen, 2021, Methods section)` |
 | `[^cite:<id>@time:1:04:22]` | `(Nieminen, 2021, 1:04:22)` |
 | `[^cite:<id>!narrative]` | `Nieminen (2021)` |
 | `[^cite:<id>@44!narrative]` | `Nieminen (2021, p. 44)` |

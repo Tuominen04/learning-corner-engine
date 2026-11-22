@@ -291,6 +291,56 @@ fn locators_are_labelled_by_kind_and_ranges_take_an_en_dash() {
     );
 }
 
+#[test]
+fn a_section_is_a_heading_followed_by_the_word_section() {
+    // APA 7 §8.13, for a web page or anything else with no page numbers.
+    let s = article("Protein", 2021, vec![author("Nieminen", "Anna")]);
+    let sources = vec![s.clone()];
+    let d = Disambiguation::compute(&sources);
+    let with = |l: &str, form: Form| in_text(&s, &d, form, Some(&Locator::Section(l.into())));
+
+    assert_eq!(
+        with("Methods", Form::Parenthetical),
+        "(Nieminen, 2021, Methods section)"
+    );
+    assert_eq!(
+        with("Methods", Form::Narrative),
+        "Nieminen (2021, Methods section)"
+    );
+    // Typed with the word already in it, it is printed as typed and not said twice: at the end,
+    // at the start, in any case, with a stray space, or as nothing but the word.
+    assert_eq!(
+        with("Methods section", Form::Parenthetical),
+        "(Nieminen, 2021, Methods section)"
+    );
+    assert_eq!(
+        with("  Results and discussion SECTION ", Form::Parenthetical),
+        "(Nieminen, 2021, Results and discussion SECTION)"
+    );
+    assert_eq!(
+        with("Section 3", Form::Parenthetical),
+        "(Nieminen, 2021, Section 3)"
+    );
+    assert_eq!(
+        with("Section", Form::Parenthetical),
+        "(Nieminen, 2021, Section)"
+    );
+    // The word in the middle of a heading is just part of it.
+    assert_eq!(
+        with("The section on care", Form::Parenthetical),
+        "(Nieminen, 2021, The section on care section)"
+    );
+    // Finnish and Russian headings keep their letters.
+    assert_eq!(
+        with("Tulokset ja pohdinta", Form::Parenthetical),
+        "(Nieminen, 2021, Tulokset ja pohdinta section)"
+    );
+    assert_eq!(
+        with("Результаты", Form::Parenthetical),
+        "(Nieminen, 2021, Результаты section)"
+    );
+}
+
 // ---- disambiguation: none of this is visible from one citation -----------------
 
 #[test]
