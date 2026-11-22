@@ -11,6 +11,7 @@
 //! [^cite:01J8ZQ…@44-46]            (Nieminen, 2021, pp. 44–46)
 //! [^cite:01J8ZQ…@para:7]           (Nieminen, 2021, para. 7)
 //! [^cite:01J8ZQ…@chapter:3]        (Nieminen, 2021, Chapter 3)
+//! [^cite:01J8ZQ…@section:Methods]  (Nieminen, 2021, Methods section)
 //! [^cite:01J8ZQ…@time:1:04:22]     (Nieminen, 2021, 1:04:22)
 //! [^cite:01J8ZQ…!narrative]        Nieminen (2021)
 //! [^cite:01J8ZQ…@44!narrative]     Nieminen (2021, p. 44)
@@ -78,6 +79,7 @@ fn render_locator(locator: &Locator) -> String {
         Locator::Page(v) => v.clone(),
         Locator::Paragraph(v) => format!("para:{v}"),
         Locator::Chapter(v) => format!("chapter:{v}"),
+        Locator::Section(v) => format!("section:{v}"),
         Locator::Timestamp(v) => format!("time:{v}"),
     }
 }
@@ -118,6 +120,7 @@ fn parse_locator(raw: &str) -> Option<Locator> {
     match raw.split_once(':') {
         Some(("para", value)) if !value.is_empty() => Some(Locator::Paragraph(value.to_string())),
         Some(("chapter", value)) if !value.is_empty() => Some(Locator::Chapter(value.to_string())),
+        Some(("section", value)) if !value.is_empty() => Some(Locator::Section(value.to_string())),
         Some(("time", value)) if !value.is_empty() => Some(Locator::Timestamp(value.to_string())),
         // A kind nobody knows is not a page with a funny name — it is a mistake, and turning it
         // into a page would cite a chapter as though it were one.
@@ -214,6 +217,11 @@ mod tests {
             format!("[^cite:{}@44-46]", id()),
             format!("[^cite:{}@para:7]", id()),
             format!("[^cite:{}@chapter:3]", id()),
+            format!("[^cite:{}@section:Methods]", id()),
+            format!(
+                "[^cite:{}@section:Results and discussion: the second year]",
+                id()
+            ),
             format!("[^cite:{}@time:1:04:22]", id()),
             format!("[^cite:{}!narrative]", id()),
             format!("[^cite:{}@44!narrative]", id()),
@@ -231,6 +239,27 @@ mod tests {
     }
 
     #[test]
+    fn a_section_is_read_as_a_name_with_spaces_and_colons_in_it() {
+        let parsed = parse_all(&format!("[^cite:{}@section:Results: year two]", id()));
+        assert_eq!(
+            parsed[0].locator,
+            Some(Locator::Section("Results: year two".to_string()))
+        );
+        // Nothing after the kind is an empty section.
+        assert!(parse_all(&format!("[^cite:{}@section:]", id())).is_empty());
+    }
+
+    #[test]
+    fn a_section_can_be_cited_narratively_too() {
+        let parsed = parse_all(&format!("[^cite:{}@section:Methods!narrative]", id()));
+        assert_eq!(
+            parsed[0].locator,
+            Some(Locator::Section("Methods".to_string()))
+        );
+        assert_eq!(parsed[0].form, Form::Narrative);
+    }
+
+    #[test]
     fn an_explicit_page_kind_is_not_a_citation() {
         // Pages have one spelling, the bare one. Accepting `@page:44` as well would give the
         // same value two forms, and a file could not round-trip byte-identically.
@@ -241,7 +270,7 @@ mod tests {
     fn an_unknown_locator_kind_is_left_as_prose() {
         // Not silently a page: citing a chapter as a page number is wrong output, and wrong
         // output is worse than visibly unrecognised text.
-        assert!(parse_all(&format!("[^cite:{}@section:2]", id())).is_empty());
+        assert!(parse_all(&format!("[^cite:{}@line:2]", id())).is_empty());
     }
 
     #[test]
